@@ -1,0 +1,18 @@
+# Environment variables and secrets
+.env
+.env.local
+*.env
+
+# Compiled Java class files
+bin/
+*.class
+
+# Local database and saved bills
+data/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db

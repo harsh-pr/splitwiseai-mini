@@ -1,0 +1,146 @@
+<!-- Bill history page showing past expenses, payment status, and lifetime statistics. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SplitWise.AI - History</title>
+  <meta name="description" content="View and manage all past split bills, bill breakdown, and payment records.">
+  <script>
+    (function() {
+      const t = localStorage.getItem('splitwise_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="index.html" class="brand">SplitWise<span>.AI</span></a>
+
+      <nav class="nav-links">
+        <a href="index.html" class="nav-link" id="nav-home">Home</a>
+        <a href="history.html" class="nav-link active" id="nav-history">History</a>
+      </nav>
+
+      <div class="user-controls">
+        <button class="theme-icon-btn" id="theme-toggle-btn" onclick="historyApp.toggleTheme()" title="Toggle Dark/Light Mode">
+          <span id="theme-icon">🌙</span>
+        </button>
+
+        <button class="btn btn-secondary btn-sm" id="auth-login-btn" onclick="window.location.href='index.html'" style="display: none;">Login</button>
+
+        <div class="profile-dropdown-wrapper" id="profile-dropdown-wrap" style="display: none;">
+          <button class="avatar-circle-btn" id="avatar-circle-btn" onclick="historyApp.toggleProfileDropdown(event)" title="Account Profile">
+            <span id="avatar-initial">U</span>
+          </button>
+          <div class="profile-dropdown-menu" id="profile-dropdown-menu">
+            <div class="profile-menu-header">
+              <span class="profile-menu-name" id="menu-user-name">User</span>
+              <span class="profile-menu-email" id="menu-user-email">user@example.com</span>
+            </div>
+            <div class="profile-menu-divider"></div>
+            <div class="profile-menu-upi-row">
+              <div>
+                <span class="profile-upi-label">Default UPI ID</span>
+                <span class="profile-upi-val" id="menu-upi-id">harsh@upi</span>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 7px;" onclick="historyApp.promptEditUpiId()">Edit</button>
+            </div>
+            <div class="profile-menu-divider"></div>
+            <button class="profile-menu-action" onclick="window.location.href='index.html'">+ New Split</button>
+            <button class="profile-menu-action danger" onclick="historyApp.handleLogout()">Sign Out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top: 24px; padding-bottom: 60px;">
+    <div class="history-header">
+      <div>
+        <h1 style="font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px;">Saved Bills</h1>
+        <p style="color: var(--text-muted); font-size: 13px;">Review past bill splits, debt balances, and payment records.</p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-danger btn-sm" onclick="historyApp.clearAllBills()">Clear All History</button>
+        <a href="index.html" class="btn btn-primary btn-sm">+ Create New Split</a>
+      </div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">TOTAL BILLS SAVED</div>
+        <div class="metric-val" id="stat-total-bills">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">TOTAL SPENT</div>
+        <div class="metric-val cyan" id="stat-total-spend">₹0.00</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">TOTAL RECEIVED</div>
+        <div class="metric-val emerald" id="stat-total-settled">₹0.00</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">TOTAL PENDING</div>
+        <div class="metric-val rose" id="stat-total-pending">₹0.00</div>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <input type="text" id="history-search" class="search-input" placeholder="Search by merchant, dish, or friend..." oninput="historyApp.applyFilters()">
+
+      <div class="filter-pills" id="category-pills">
+        <button class="filter-pill active" data-cat="all" onclick="historyApp.setCategoryFilter('all', this)">All</button>
+        <button class="filter-pill" data-cat="restaurant" onclick="historyApp.setCategoryFilter('restaurant', this)">🍽️ Dining</button>
+        <button class="filter-pill" data-cat="grocery" onclick="historyApp.setCategoryFilter('grocery', this)">🛒 Groceries</button>
+        <button class="filter-pill" data-cat="utilities" onclick="historyApp.setCategoryFilter('utilities', this)">💡 Utilities</button>
+        <button class="filter-pill" data-cat="entertainment" onclick="historyApp.setCategoryFilter('entertainment', this)">🎟️ Events</button>
+      </div>
+
+      <select id="status-filter" onchange="historyApp.applyFilters()" style="padding: 6px 10px; font-size: 12px;">
+        <option value="all">All Status</option>
+        <option value="settled">Settled Only</option>
+        <option value="pending">Pending Only</option>
+      </select>
+    </div>
+
+    <div id="history-bills-list">
+    </div>
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 48px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+      <div style="font-size: 32px; margin-bottom: 8px;">🧾</div>
+      <h3 style="font-size: 16px; color: var(--text); margin-bottom: 6px;">No Bills Found</h3>
+      <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">You haven't split any bills yet, or no bills match your active search filter.</p>
+      <a href="index.html" class="btn btn-primary btn-sm">+ Scan & Split a Bill</a>
+    </div>
+
+    <div class="modal-overlay" id="user-breakdown-modal" onclick="if(event.target===this)historyApp.closeBreakdownModal()">
+      <div class="modal-box" style="max-width: 500px; width: 92%; max-height: 88vh; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="participant-avatar" id="modal-user-avatar" style="width: 36px; height: 36px; font-size: 15px;">U</div>
+            <div>
+              <h3 id="modal-user-name" style="margin: 0; font-size: 16px; color: var(--text);">Participant Name</h3>
+              <div id="modal-bill-title" style="font-size: 12px; color: var(--text-muted);">in Bill Title</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="historyApp.closeBreakdownModal()" style="padding: 4px 8px;">✕</button>
+        </div>
+
+        <div id="modal-breakdown-body" style="overflow-y: auto; flex: 1; padding-right: 4px; overscroll-behavior: contain;">
+        </div>
+
+        <div id="modal-breakdown-footer" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="api-service.js"></script>
+  <script src="history.js"></script>
+</body>
+</html>

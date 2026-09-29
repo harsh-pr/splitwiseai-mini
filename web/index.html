@@ -1,0 +1,490 @@
+<!-- Main user interface for creating bill splits, scanning receipts, and live chat. -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SplitWise.AI - Smart Expense Splitting</title>
+  <meta name="description" content="Simple, intelligent receipt analyzer, split assistant, and debt-settling manager.">
+  <script>
+    (function () {
+      const t = localStorage.getItem('splitwise_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="index.html" class="brand">SplitWise<span>.AI</span></a>
+
+      <nav class="nav-links">
+        <a href="index.html" class="nav-link active" id="nav-home">Home</a>
+        <a href="history.html" class="nav-link" id="nav-history">History</a>
+      </nav>
+
+      <div class="user-controls">
+        <button class="theme-icon-btn" id="theme-toggle-btn" onclick="app.toggleTheme()" title="Toggle Dark/Light Mode">
+          <span id="theme-icon">🌙</span>
+        </button>
+
+        <button class="btn btn-secondary btn-sm" id="auth-login-btn" onclick="app.openAuthModal()">Login</button>
+
+        <div class="profile-dropdown-wrapper" id="profile-dropdown-wrap" style="display: none;">
+          <button class="avatar-circle-btn" id="avatar-circle-btn" onclick="app.toggleProfileDropdown(event)"
+            title="Account Profile">
+            <span id="avatar-initial">H</span>
+          </button>
+          <div class="profile-dropdown-menu" id="profile-dropdown-menu">
+            <div class="profile-menu-header">
+              <span class="profile-menu-name" id="menu-user-name">User</span>
+              <span class="profile-menu-email" id="menu-user-email">user@example.com</span>
+            </div>
+            <div class="profile-menu-divider"></div>
+            <div class="profile-menu-upi-row">
+              <div>
+                <span class="profile-upi-label">Default UPI ID</span>
+                <span class="profile-upi-val" id="menu-upi-id">harsh@upi</span>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 7px;"
+                onclick="app.promptEditUpiId()">Edit</button>
+            </div>
+            <div class="profile-menu-divider"></div>
+            <button class="profile-menu-action" onclick="window.location.href='history.html'">View History</button>
+            <button class="profile-menu-action danger" onclick="app.handleLogout()">Sign Out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top: 20px; padding-bottom: 60px;">
+    <div id="status-banner" class="banner"></div>
+
+    <div class="wizard-progress">
+      <div class="progress-step active" id="p-step-1" onclick="app.goToStep(1)">
+        <div class="step-num">1</div>
+        <div class="step-name">Category</div>
+      </div>
+      <div class="step-arrow">➔</div>
+
+      <div class="progress-step" id="p-step-2" onclick="app.goToStep(2)">
+        <div class="step-num">2</div>
+        <div class="step-name">Upload Bill</div>
+      </div>
+      <div class="step-arrow">➔</div>
+
+      <div class="progress-step" id="p-step-3" onclick="app.goToStep(3)">
+        <div class="step-num">3</div>
+        <div class="step-name">Split Items</div>
+      </div>
+      <div class="step-arrow">➔</div>
+
+      <div class="progress-step" id="p-step-4" onclick="app.goToStep(4)">
+        <div class="step-num">4</div>
+        <div class="step-name">UPI QR Codes</div>
+      </div>
+      <div class="step-arrow">➔</div>
+
+      <div class="progress-step" id="p-step-5" onclick="app.goToStep(5)">
+        <div class="step-num">5</div>
+        <div class="step-name">Summary & Debts</div>
+      </div>
+    </div>
+
+    <section class="wizard-panel active" id="panel-step-1">
+      <div class="step-header">
+        <h2>1. What kind of expense are you splitting?</h2>
+        <p>Choose a category to apply appropriate splitting rules.</p>
+      </div>
+
+      <div class="category-grid">
+        <div class="category-card active" data-cat="restaurant" onclick="app.selectCategory('restaurant', this)">
+          <div class="cat-icon-box">🍽️</div>
+          <div class="cat-info">
+            <h3>Restaurant & Dining</h3>
+            <p>Split foods, drinks, starters (& taxes) among friends.</p>
+          </div>
+        </div>
+
+        <div class="category-card" data-cat="grocery" onclick="app.selectCategory('grocery', this)">
+          <div class="cat-icon-box">🛒</div>
+          <div class="cat-info">
+            <h3>Groceries & Mart</h3>
+            <p>Split DMart bills, Blinkit/Zepto bills, & other grocery mart bills.</p>
+          </div>
+        </div>
+
+        <div class="category-card" data-cat="utilities" onclick="app.selectCategory('utilities', this)">
+          <div class="cat-icon-box">💡</div>
+          <div class="cat-info">
+            <h3>Flat & Utilities</h3>
+            <p>Split electricity, Wi-Fi, society maintenance, room rent & other household bills.</p>
+          </div>
+        </div>
+
+        <div class="category-card" data-cat="entertainment" onclick="app.selectCategory('entertainment', this)">
+          <div class="cat-icon-box">🎟️</div>
+          <div class="cat-info">
+            <h3>Entertainment</h3>
+            <p>Split movie tickets, concert tickets, snacks combos & other entertainment related expenses.</p>
+          </div>
+        </div>
+
+        <div class="category-card category-card-disabled" data-cat="trip" onclick="app.selectCategory('trip', this)"
+          title="Trip Mode bundles hotels, travel, cabs and fuel into a multi-expense balance (Coming Soon)">
+          <div class="cat-icon-box">✈️</div>
+          <div class="cat-info">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h3>Trip Mode (Vacation)</h3>
+              <span class="badge-coming-soon">Coming Soon</span>
+            </div>
+            <p>Bundles stays, cabs, fuel, tolls & trip meals into one collective balance.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-footer">
+        <div></div>
+        <button class="btn btn-primary" onclick="app.goToStep(2)">
+          <span>Continue to Upload Bill</span> ➔
+        </button>
+      </div>
+    </section>
+
+    <section class="wizard-panel" id="panel-step-2">
+      <div class="step-header">
+        <h2>2. Upload Bill</h2>
+        <p>Upload a printed bill, handwritten slip, or app screenshot (GPay, PhonePe, Blinkit, BookMyShow) to
+          automatically extract items and prices.</p>
+      </div>
+
+      <div class="dropzone" id="receipt-dropzone" onclick="document.getElementById('receipt-file-input').click()">
+        <input type="file" id="receipt-file-input" accept="image/*,.pdf,application/pdf" style="display: none;">
+
+        <div id="dropzone-top-prompt">
+          <div class="dropzone-icon">📄</div>
+          <h3>Drag & Drop OR Select</h3>
+          <p>Supports PDF, JPG, PNG, or WebP receipts up to 10MB</p>
+          <button type="button" class="btn btn-secondary">Browse Files</button>
+        </div>
+
+        <div class="preview-box" id="preview-box" style="display: none;">
+          <div id="receipt-preview-pdf" style="display: none; padding: 18px 12px; text-align: center;"></div>
+          <img id="receipt-preview-img" src="" alt="Receipt Preview">
+          <div style="margin-top: 10px;">
+            <button type="button" class="btn btn-secondary btn-sm"
+              onclick="event.stopPropagation(); document.getElementById('receipt-file-input').click();">Change
+              File</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="direct-split-divider">
+        <span>OR SPLIT WITHOUT A BILL</span>
+      </div>
+
+      <div class="direct-split-card">
+        <div class="direct-split-header">
+          <div class="direct-split-icon">⚡</div>
+          <div>
+            <h4>Split Without a Bill</h4>
+            <p>Don't have a paper receipt? Enter bill title & enter total amount of bill to split, or leave it empty to
+              calculate in next step.</p>
+          </div>
+        </div>
+        <div class="direct-split-form">
+          <div class="direct-split-row">
+            <div class="direct-split-input-wrap direct-split-title-wrap">
+              <label for="direct-split-title">Expense Title</label>
+              <input type="text" id="direct-split-title"
+                placeholder="e.g. Electricity, Tata Play Fiber, Society Maintenance, DMart">
+            </div>
+            <div class="direct-split-input-wrap direct-split-amt-wrap">
+              <label for="direct-split-amount">Total Amount (₹) <span
+                  style="font-size: 10px; color: var(--text-dim); font-weight: normal; text-transform: none;">(Optional)</span></label>
+              <input type="number" id="direct-split-amount" step="1" min="1"
+                placeholder="e.g. 1400 (or leave blank to itemize)" oninput="app.updateDirectSplitButton()"
+                onkeydown="if(event.key==='Enter')app.handleDirectSplit()">
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-direct-split" onclick="app.handleDirectSplit()">
+              Proceed ➔
+            </button>
+          </div>
+          <div id="direct-split-preset-chips" class="direct-split-preset-chips"></div>
+        </div>
+      </div>
+
+      <div class="step-footer">
+        <button class="btn btn-secondary" onclick="app.goToStep(1)">⬅ Back</button>
+        <button class="btn btn-primary" id="btn-scan-ocr" onclick="app.scanReceiptWithAI()">
+          Scan Receipt ➔
+        </button>
+      </div>
+    </section>
+
+    <section class="wizard-panel" id="panel-step-3">
+      <div class="step-header">
+        <h2>3. Assign Items</h2>
+        <p>Tell the assistant who ordered what in plain English, or tap dish badges to assign friends directly.</p>
+      </div>
+
+      <div class="friends-bar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <strong style="color: var(--text);">👥 Friends in this Split:</strong>
+          <div class="friends-chips" id="friends-chips-container"></div>
+        </div>
+        <form class="inline-form" onsubmit="app.handleAddFriend(event)">
+          <input type="text" id="add-friend-input" placeholder="+ Add friend (e.g. Sarthak)" autocomplete="off">
+          <button type="submit" class="btn btn-secondary btn-sm">Add</button>
+        </form>
+      </div>
+
+      <div class="split-columns">
+        <div class="chat-panel">
+          <div class="chat-header">
+            <h3>✨ Split Assistant</h3>
+            <span class="tag-active">Ready</span>
+          </div>
+
+          <div class="chat-messages" id="chat-messages">
+            <div class="msg bot">
+              Ready to split! I have parsed your bill items on the right. Tell me who ordered what or mention who paid.
+            </div>
+          </div>
+
+          <form class="chat-input-bar" onsubmit="app.handleChatSubmit(event)">
+            <textarea id="chat-input-box" rows="1"
+              placeholder="Type instruction (e.g., 'Rigved paid', 'Split equally')..."></textarea>
+            <button type="submit" class="btn btn-primary" id="chat-submit-btn">Send</button>
+          </form>
+        </div>
+
+        <div class="items-panel">
+          <div class="items-header">
+            <div style="flex: 1; min-width: 0; margin-right: 12px;">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <div id="step3-title-view" style="display: flex; align-items: center; gap: 6px;">
+                  <h3 id="items-merchant-name"
+                    style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text);">Line Items</h3>
+                  <button type="button" class="btn-icon-pencil" onclick="app.startEditingTitle(3)"
+                    title="Edit split title">✏️</button>
+                </div>
+                <div id="step3-title-edit" style="display: none; align-items: center; gap: 4px;">
+                  <input type="text" id="step3-title-input" class="title-inline-input" placeholder="Split title"
+                    onkeydown="if(event.key==='Enter')app.saveEditingTitle(3); if(event.key==='Escape')app.cancelEditingTitle(3);">
+                  <button type="button" class="btn-title-action btn-title-save" onclick="app.saveEditingTitle(3)"
+                    title="Save">✓</button>
+                  <button type="button" class="btn-title-action btn-title-cancel" onclick="app.cancelEditingTitle(3)"
+                    title="Cancel">✕</button>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="app.addNewDishItem()">+ Add Item</button>
+              </div>
+              <div id="items-merchant-subtitle"
+                style="font-size: 11.5px; color: var(--accent); margin-top: 3px; font-weight: 500; display: none;">
+              </div>
+            </div>
+            <strong style="color: var(--text); font-size: 15px; white-space: nowrap;"
+              id="items-total-display">₹0.00</strong>
+          </div>
+
+          <div class="items-scroll" id="items-list-container">
+          </div>
+
+          <div class="items-footer">
+            <div class="tax-row">
+              <span id="editor-tax-label">Taxes / GST:</span>
+              <div class="tax-edit-wrap">
+                <span>₹</span>
+                <input type="number" id="editor-tax-input" step="0.01" min="0" value="0.00" class="tax-edit-input"
+                  onchange="app.updateTax(this.value)" title="Extra tax added on top of items">
+              </div>
+            </div>
+            <div class="tax-row">
+              <span id="editor-tip-label">Charges / Extra:</span>
+              <div class="tax-edit-wrap">
+                <span>₹</span>
+                <input type="number" id="editor-tip-input" step="0.01" min="0" value="0.00" class="tax-edit-input"
+                  onchange="app.updateTip(this.value)" title="Tip or extra service charge">
+              </div>
+            </div>
+            <div class="tax-row">
+              <span>Paid By:</span>
+              <select id="bill-payer-select" onchange="app.updatePayer(this.value)"
+                style="padding: 2px 6px; font-size: 11px;">
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-footer">
+        <button class="btn btn-secondary" onclick="app.goToStep(2)">⬅ Back</button>
+        <button class="btn btn-primary" onclick="app.goToStep(4)">
+          <span>Generate UPI Payment QR</span> ➔
+        </button>
+      </div>
+    </section>
+
+    <section class="wizard-panel" id="panel-step-4">
+      <div class="step-header">
+        <h2>UPI QR Codes</h2>
+        <p>Scan with any UPI app (GPay, PhonePe, Paytm, BHIM) to pay directly.</p>
+      </div>
+
+      <div class="upi-bar">
+        <div>
+          <strong>Receive payments at:</strong>
+          <span style="font-family: var(--font-mono); color: var(--text); margin-left: 4px;"
+            id="display-upi-id">harsh@upi</span>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <input type="text" id="custom-upi-input" placeholder="Change UPI ID for this bill"
+            oninput="app.handleUpiInput(this.value)" onchange="app.updateUpiId(this.value)">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="app.updateUpiId()">Apply</button>
+        </div>
+      </div>
+
+      <div class="upi-grid" id="upi-qr-grid">
+      </div>
+
+      <div class="step-footer">
+        <button class="btn btn-secondary" onclick="app.goToStep(3)">⬅ Back</button>
+        <button class="btn btn-primary" onclick="app.goToStep(5)">
+          <span>View Summary</span> ➔
+        </button>
+      </div>
+    </section>
+
+    <section class="wizard-panel" id="panel-step-5">
+      <div class="step-header">
+        <div id="step5-title-view" style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <h2 id="summary-bill-title" style="margin: 0;">Split Summary</h2>
+          <button type="button" class="btn-icon-pencil" onclick="app.startEditingTitle(5)"
+            title="Edit split title">✏️</button>
+        </div>
+        <div id="step5-title-edit" style="display: none; align-items: center; gap: 6px; margin-bottom: 4px;">
+          <input type="text" id="step5-title-input" class="title-inline-input title-inline-input-lg"
+            placeholder="Split title"
+            onkeydown="if(event.key==='Enter')app.saveEditingTitle(5); if(event.key==='Escape')app.cancelEditingTitle(5);">
+          <button type="button" class="btn-title-action btn-title-save" onclick="app.saveEditingTitle(5)"
+            title="Save">✓</button>
+          <button type="button" class="btn-title-action btn-title-cancel" onclick="app.cancelEditingTitle(5)"
+            title="Cancel">✕</button>
+        </div>
+        <p id="summary-bill-subtitle">View individual UPI QR codes, mark payments as paid and check detailed breakdowns.</p>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">TOTAL BILL</div>
+          <div class="metric-val" id="summary-total-bill">₹0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">AMOUNT COLLECTED</div>
+          <div class="metric-val" id="summary-collected">₹0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">PENDING BALANCE</div>
+          <div class="metric-val" id="summary-pending">₹0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">PROGRESS</div>
+          <div class="metric-val" id="summary-progress">0%</div>
+        </div>
+      </div>
+
+      <div class="collection-progress-card">
+        <div class="progress-bar-header">
+          <span class="progress-title">Collection Progress</span>
+          <span class="progress-stats" id="collection-stats-text">₹0 of ₹0 paid</span>
+        </div>
+        <div class="collection-track">
+          <div class="collection-fill" id="collection-fill-bar" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <div class="summary-section-box">
+        <div class="summary-section-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 15px;">⊞</span>
+            <h3 style="font-size: 14px; font-weight: 700; color: var(--text); margin: 0;">Payment QR Codes</h3>
+          </div>
+          <span style="font-size: 12px; color: var(--text-muted);">Individual UPI QR codes</span>
+        </div>
+        <div class="summary-qr-grid" id="summary-qr-grid"></div>
+      </div>
+
+      <div class="summary-breakdown-box">
+        <div class="summary-section-header">
+          <h3 style="font-size: 14px; font-weight: 700; color: var(--text); margin: 0;">User-wise Bill Breakdown</h3>
+          <span style="font-size: 12px; color: var(--text-muted);">Click any person to expand or collapse breakdown</span>
+        </div>
+        <div class="participant-cards-list" id="participant-cards-list"></div>
+      </div>
+
+      <div class="step-footer">
+        <button class="btn btn-secondary" onclick="app.goToStep(3)">⬅ Back</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="app.goToStep(1)">Restart</button>
+          <button class="btn btn-primary" id="btn-save-history" onclick="app.saveSplitToHistory()">
+            💾 Save Split to History
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-overlay" id="auth-modal" onclick="if(event.target===this)app.closeAuthModal()">
+    <div class="modal-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 id="auth-modal-title" style="font-size: 16px; margin: 0; font-weight: 600; color: var(--text);">Login</h3>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="app.closeAuthModal()"
+          style="padding: 2px 8px; font-size: 13px;">✕</button>
+      </div>
+
+      <div id="auth-banner" class="banner"></div>
+
+      <form id="auth-form" onsubmit="app.handleAuthSubmit(event)">
+        <div class="form-group" id="auth-name-group" style="display: none; margin-bottom: 12px;">
+          <label for="auth-name"
+            style="display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">Name</label>
+          <input type="text" id="auth-name" placeholder="Enter your name" style="width: 100%;">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label for="auth-email"
+            style="display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">Email</label>
+          <input type="email" id="auth-email" placeholder="Enter your email" required style="width: 100%;">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="auth-password"
+            style="display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px;">Password</label>
+          <input type="password" id="auth-password" placeholder="Enter your password" required style="width: 100%;">
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="auth-submit-btn"
+          style="width: 100%; padding: 9px; font-weight: 600;">
+          Login
+        </button>
+      </form>
+
+      <p style="text-align: center; margin-top: 14px; font-size: 12px; color: var(--text-muted); margin-bottom: 0;">
+        <span id="auth-toggle-msg">Don't have an account?</span>
+        <a href="#" onclick="app.toggleAuthMode(event)"
+          style="color: var(--text); font-weight: 600; text-decoration: underline;" id="auth-toggle-link">Sign Up</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="api-service.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
