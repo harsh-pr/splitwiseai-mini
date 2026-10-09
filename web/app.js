@@ -395,10 +395,6 @@ const app = (function () {
 
   // Selects an expense category and updates UI elements.
   function selectCategory(cat, el) {
-    if (cat === 'trip') {
-      showBanner('Trip Mode is on hold! It will bundle stays, cabs, and fuel into one collective balance (Coming Soon).', 'error');
-      return;
-    }
     currentCategory = cat;
     currentUtilityMode = 'auto';
     currentBillTotal = 0.0;
@@ -554,8 +550,8 @@ const app = (function () {
 
     const greetings = {
       utilities: isItemizedChat
-        ? `Ready to split ${currentMerchant}! You can split in 2 ways:\n• 📅 Duration-wise: e.g. 'Harsh 15 days, Sarthak 15 days, Hrudayesh 10 days'\n• ⚖️ Normal split: 'Split equally among everyone'`
-        : "Ready to split Flat & Utilities! You can split in 2 ways:\n• 📅 Duration-wise: e.g. 'Harsh 15 days, Sarthak 15 days, Hrudayesh 10 days'\n• ⚖️ Normal split: 'Split equally among everyone'",
+        ? `Ready to split ${currentMerchant}! Tell me who paid or mention how to split among friends.`
+        : "Ready to split Flat & Utilities! Tell me who paid or mention how to split among friends.",
       grocery: isItemizedChat
         ? `Ready to split ${currentMerchant}! Tell me what items you bought (e.g. 'milk 60, eggs 120, rice 300'), who shares what, and who paid.`
         : "Ready to split groceries! I've itemized your supermarket/mart items. Tell me which items are shared household essentials and which are personal snacks.",
@@ -573,14 +569,12 @@ const app = (function () {
 
     const input = document.getElementById('chat-input-box');
     if (input) {
-      if (currentCategory === 'utilities') {
-        input.placeholder = "e.g. 'Harsh 15 days, Sarthak 15 days' or 'Split equally'...";
-      } else if (currentCategory === 'grocery') {
+      if (currentCategory === 'grocery') {
         input.placeholder = "e.g. 'Milk and rice are shared, chips for Sarthak'...";
       } else if (currentCategory === 'entertainment') {
         input.placeholder = "e.g. 'Harsh paid', '2 tickets for Rohan', 'Split tickets equally'...";
       } else {
-        input.placeholder = "Type instruction (e.g. 'Alex paid', 'Rohan had pizza')...";
+        input.placeholder = "Type instruction (e.g. 'Harsh paid', 'Split equally')...";
       }
     }
   }
@@ -1050,30 +1044,19 @@ const app = (function () {
     const isDurationMode = isUtility && (currentUtilityMode === 'duration');
 
     let headerHtml = '';
-    if (isUtility) {
+    if (isDurationMode) {
       const cycleDays = currentBillingDays || 30;
       const cycleLabel = currentBillingPeriod || `${cycleDays} Days (Monthly Bill)`;
       const dailyFlatCost = cycleDays > 0 ? (grandTotal / cycleDays) : 0;
+      const sharingCount = currentParticipants.length || currentItems.length || 1;
 
       headerHtml = `
-        <div class="utility-mode-banner">
-          <div class="utility-mode-header">
-            <span>Type 3: Flat & Utilities Split</span>
-            <span class="utility-active-badge">${isDurationMode ? '📅 Duration-wise Split (Stay Pro-rated)' : '⚖️ Normal (Equal) Split'}</span>
-          </div>
-          ${isDurationMode ? `
-            <div class="duration-stats-strip">
-              <span>📅 <b>Billing Period: ${escapeHtml(cycleLabel)}</b></span>
-              <span>•</span>
-              <span>👥 <b>${currentItems.length} Flatmates Sharing</b></span>
-              <span>•</span>
-              <span>💰 <b>₹${dailyFlatCost.toFixed(2)}/day flat expense</b></span>
-            </div>
-          ` : `
-            <div class="duration-stats-strip" style="color: var(--text-dim); font-size: 11px;">
-              <span>⚖️ <b>Equal Split Active (${escapeHtml(cycleLabel)}):</b> Total bill split equally among all flatmates. (To split by duration, specify flatmates' stay days in chat, e.g. <i>"Harsh 15 days, Sarthak 15 days"</i>).</span>
-            </div>
-          `}
+        <div class="utility-duration-strip">
+          <span>📅 Billing Period: <b>${escapeHtml(cycleLabel)}</b></span>
+          <span class="strip-dot">•</span>
+          <span>👥 <b>${sharingCount} ${sharingCount === 1 ? 'Flatmate' : 'Flatmates'} Sharing</b></span>
+          <span class="strip-dot">•</span>
+          <span>💰 <b>₹${dailyFlatCost.toFixed(2)}/day</b> flat expense</span>
         </div>
       `;
     }

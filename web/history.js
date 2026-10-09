@@ -12,45 +12,19 @@ const historyApp = (function () {
     entertainment: '🎟️',
     hotel: '🏨',
     travel: '🚕',
-    trip: '✈️',
     general: '🧾'
   };
 
   let defaultUpiId = localStorage.getItem('splitwise_default_upi') || 'harsh@upi';
+  const openDrawers = new Set();
+  const openQrBills = new Set();
 
   // Initializes themes, user status, UPI display, and loads saved bills.
   async function init() {
     initTheme();
     checkUser();
     updateUpiDisplay();
-    setupModalEvents();
     await loadHistory();
-  }
-
-  // Sets up scrolling and escape key event listeners for the breakdown modal.
-  function setupModalEvents() {
-    const modal = document.getElementById('user-breakdown-modal');
-    if (modal) {
-      modal.addEventListener('wheel', (e) => {
-        const scrollable = e.target.closest('#modal-breakdown-body');
-        if (!scrollable) {
-          e.preventDefault();
-        }
-      }, { passive: false });
-
-      modal.addEventListener('touchmove', (e) => {
-        const scrollable = e.target.closest('#modal-breakdown-body');
-        if (!scrollable) {
-          e.preventDefault();
-        }
-      }, { passive: false });
-    }
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeBreakdownModal();
-      }
-    });
   }
 
   // Loads the saved color theme from storage and applies it.
@@ -259,6 +233,9 @@ const historyApp = (function () {
       const isSettled = isBillSettled(bill);
       const statusClass = isSettled ? 'badge-paid' : 'badge-pending';
       const statusText = isSettled ? 'Settled' : 'Pending';
+      const unpaidDebts = debts.filter(d => !(d.settled === true || d.status === 'settled' || d.paid === true));
+      const isQrOpen = openQrBills.has(bill.id);
+      const receivingUpi = (bill.upiId || bill.receiverUpi || defaultUpiId || 'harsh@upi').trim();
 
       return `
         <div class="history-card" id="bill-card-${bill.id}">
@@ -298,16 +275,14 @@ const historyApp = (function () {
               const userDebt = debts.find(d => (d.from || '').toLowerCase().trim() === p.toLowerCase().trim());
               const isPaid = userDebt ? (userDebt.settled === true || userDebt.status === 'settled' || userDebt.paid === true) : true;
               return `
-                <button type="button" class="chip chip-clickable ${isPaid ? 'chip-paid' : ''}" 
-                  onclick="historyApp.showUserBreakdown('${bill.id}', '${escapeHtml(p)}')" 
-                  title="Click to view breakdown for ${escapeHtml(p)}">
+                <span class="chip ${isPaid ? 'chip-paid' : ''}">
                   👤 ${escapeHtml(p)} ${userDebt ? (isPaid ? '✓' : `(₹${Math.round(userDebt.amount)})`) : ''}
-                </button>
+                </span>
               `;
             }).join('')}
           </div>
 
-          <div class="history-drawer" id="drawer-${bill.id}">
+          <div class="history-drawer ${openDrawers.has(bill.id) ? 'show' : ''}" id="drawer-${bill.id}">
             <div class="drawer-grid">
               <div class="drawer-col">
                 <h4>Dish Allocations</h4>
@@ -357,8 +332,13 @@ const historyApp = (function () {
             </div>
           </div>
 
+          <!-- Inline QR Drawer for Unpaid Users -->
+          <div class="history-qr-section ${isQrOpen ? 'show' : ''}" id="qr-section-${bill.id}">
+            ${renderQrSectionHtml(bill, debts, unpaidDebts, receivingUpi)}
+          </div>
+
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light);">
-            <div style="display: flex; gap: 8px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
               <button class="btn btn-secondary btn-sm" onclick="historyApp.toggleDrawer('${bill.id}')">
                 View Items & Debts ▾
               </button>
@@ -366,6 +346,10 @@ const historyApp = (function () {
                 <button class="btn ${isSettled ? 'btn-secondary' : 'btn-primary'} btn-sm" 
                   onclick="historyApp.toggleAllDebts('${bill.id}', ${!isSettled})">
                   ${isSettled ? 'Reopen' : '✓ Mark Paid'}
+                </button>
+                <button class="btn ${isQrOpen ? 'btn-primary' : 'btn-secondary'} btn-sm" id="btn-qr-${bill.id}"
+                  onclick="historyApp.toggleQrSection('${bill.id}')">
+                  ${isQrOpen ? 'Hide QR' : 'Show QR'}
                 </button>
               ` : ''}
             </div>
@@ -380,238 +364,80 @@ const historyApp = (function () {
 
   // Expands or collapses item and debt details for a bill card.
   function toggleDrawer(billId) {
+    if (openDrawers.has(billId)) {
+      openDrawers.delete(billId);
+    } else {
+      openDrawers.add(billId);
+    }
     const drawer = document.getElementById(`drawer-${billId}`);
     if (drawer) {
-      drawer.classList.toggle('show');
+      drawer.classList.toggle('show', openDrawers.has(billId));
     }
   }
 
-  let currentModalBillId = null;
-  let currentModalPerson = null;
-
-  // Shows a modal with itemized cost breakdown and UPI QR code for a person.
-  function showUserBreakdown(billId, personName) {
-    const bill = allBills.find(b => b.id === billId);
-    if (!bill) return;
-
-    currentModalBillId = billId;
-    currentModalPerson = personName;
-
-    const modal = document.getElementById('user-breakdown-modal');
-    const avatarEl = document.getElementById('modal-user-avatar');
-    const nameEl = document.getElementById('modal-user-name');
-    const titleEl = document.getElementById('modal-bill-title');
-    const bodyEl = document.getElementById('modal-breakdown-body');
-    const footerEl = document.getElementById('modal-breakdown-footer');
-
-    if (!modal) return;
-
-    const initial = (personName || 'U').trim().charAt(0).toUpperCase();
-    if (avatarEl) avatarEl.textContent = initial;
-    if (nameEl) nameEl.textContent = personName;
-    if (titleEl) titleEl.textContent = `in "${bill.title || 'Expense'}" (${new Date(bill.createdAt || Date.now()).toLocaleDateString()})`;
-
-    const isPayer = (bill.payer || '').toLowerCase().trim() === personName.toLowerCase().trim();
-    const debts = bill.debts || [];
-    const userDebt = debts.find(d => (d.from || '').toLowerCase().trim() === personName.toLowerCase().trim());
-    const isPaid = userDebt ? (userDebt.settled === true || userDebt.status === 'settled' || userDebt.paid === true) : true;
-
-    const personDishes = [];
-    let personSubtotal = 0;
-
-    (bill.items || []).forEach(it => {
-      const assignees = (it.assignedTo && it.assignedTo.length > 0)
-        ? it.assignedTo
-        : ((it.assigned && it.assigned.length > 0) ? it.assigned : (bill.participants || []));
-
-      const isAssigned = assignees.some(a => a.toLowerCase().trim() === personName.toLowerCase().trim());
-      if (isAssigned) {
-        const shareCount = assignees.length || 1;
-        const others = assignees.filter(a => a.toLowerCase().trim() !== personName.toLowerCase().trim());
-        const q = Number(it.quantity || it.qty || 1);
-        let shareDesc = shareCount === 1 ? 'Solo order' : `Shared with ${others.join(', ')} (1 of ${shareCount} shares)`;
-        if (q > 1) {
-          const unitPrice = (Number(it.price) / q).toFixed(0);
-          shareDesc += ` • ${q} Qty @ ₹${unitPrice}`;
-        }
-        const portionCost = Number(it.price || 0) / shareCount;
-        personSubtotal += portionCost;
-        personDishes.push({
-          name: it.name || 'Dish',
-          desc: shareDesc,
-          cost: portionCost,
-          fullPrice: Number(it.price || 0)
-        });
-      }
-    });
-
-    const itemsTotal = (bill.items || []).reduce((s, it) => s + Number(it.price || 0), 0);
-    const isTaxInclusive = !!(bill.categoryMeta && bill.categoryMeta.taxInclusive);
-    const taxTipRatio = itemsTotal > 0 ? (personSubtotal / itemsTotal) : (1 / (bill.participants.length || 1));
-    const personTax = isTaxInclusive ? 0 : (Number(bill.tax || 0) * taxTipRatio);
-    const personTip = Number(bill.tip || 0) * taxTipRatio;
-    const personTotal = personSubtotal + personTax + personTip;
-
-    let bodyHtml = `
-      <div style="margin-bottom: 12px;">
-        <span class="breakdown-role-badge ${isPayer ? 'breakdown-role-payer' : 'breakdown-role-debtor'}">
-          ${isPayer ? '🛡️ Payer (Paid Upfront)' : '👤 Participant'}
-        </span>
-      </div>
-
-      <div class="breakdown-section-title">Itemized Dishes (${personDishes.length})</div>
-    `;
-
-    if (personDishes.length === 0) {
-      bodyHtml += `<div style="color: var(--text-muted); font-size: 13px; padding: 10px 0;">No individual dishes allocated.</div>`;
+  // Toggles the inline QR section for unpaid users on a bill card.
+  function toggleQrSection(billId) {
+    if (openQrBills.has(billId)) {
+      openQrBills.delete(billId);
     } else {
-      personDishes.forEach(d => {
-        bodyHtml += `
-          <div class="breakdown-dish-row">
-            <div>
-              <div class="breakdown-dish-name">${escapeHtml(d.name)}</div>
-              <div class="breakdown-dish-meta">${escapeHtml(d.desc)}</div>
-            </div>
-            <div class="breakdown-dish-amt">₹${d.cost.toFixed(2)}</div>
-          </div>
-        `;
-      });
+      openQrBills.add(billId);
     }
+    applyFilters();
+  }
 
-    bodyHtml += `
-      <div class="breakdown-summary-box">
-        <div class="breakdown-stat-line">
-          <span>Dishes Subtotal:</span>
-          <strong>₹${personSubtotal.toFixed(2)}</strong>
-        </div>
-        ${((!isTaxInclusive && Number(bill.tax || 0) > 0) || Number(bill.tip || 0) > 0) ? `
-          <div class="breakdown-stat-line">
-            <span>Tax & Tip Share:</span>
-            <span>₹${(personTax + personTip).toFixed(2)}</span>
-          </div>
-        ` : (isTaxInclusive && Number(bill.tax || 0) > 0 ? `
-          <div class="breakdown-stat-line" style="color: var(--text-dim); font-size: 11px;">
-            <span>GST Included in bill:</span>
-            <span>₹${(Number(bill.tax || 0) * taxTipRatio).toFixed(2)}</span>
-          </div>
-        ` : '')}
-        <div class="breakdown-total-line">
-          <span>Total Calculated Share:</span>
-          <span style="color: var(--text);">₹${personTotal.toFixed(2)}</span>
-        </div>
-      </div>
-    `;
-
-    if (!isPayer && userDebt) {
-      if (!isPaid) {
-        const receivingUpi = (bill.upiId || bill.receiverUpi || defaultUpiId || 'harsh@upi').trim();
-        const payerName = bill.payer || 'Payer';
-        const billTitle = bill.title || 'Bill';
-        const debtAmt = Number(userDebt.amount || personTotal || 0).toFixed(2);
-        const upiLink = `upi://pay?pa=${encodeURIComponent(receivingUpi)}&pn=${encodeURIComponent(payerName)}&am=${debtAmt}&cu=INR&tn=SplitWise%20${encodeURIComponent(billTitle)}`;
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(upiLink)}`;
-
-        bodyHtml += `
-          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; text-align: center; margin-top: 14px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 8px;">
-              📲 Scan QR to Pay ₹${Math.round(userDebt.amount)} to ${escapeHtml(payerName)}
-            </div>
-            <div class="qr-box" style="margin: 0 auto 8px auto; background: #ffffff; padding: 6px; border-radius: var(--radius-sm); display: inline-block;">
-              <img src="${qrUrl}" alt="UPI QR Code" style="width: 140px; height: 140px; display: block;">
-            </div>
-            <div style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); display: flex; align-items: center; justify-content: center; gap: 8px;">
-              <span>UPI ID: <strong style="color: var(--text);">${escapeHtml(receivingUpi)}</strong></span>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="historyApp.editBillUpiId('${bill.id}')" style="padding: 1px 6px; font-size: 10px;" title="Change receiving UPI ID for this bill">Edit</button>
-            </div>
-          </div>
-        `;
-      } else {
-        bodyHtml += `
-          <div style="background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: center; margin-top: 14px; color: var(--emerald); font-size: 13px; font-weight: 600;">
-            ✓ Payment Settled & Complete
-          </div>
-        `;
-      }
-    }
-
-    if (isPayer) {
-      const debtsToReceive = debts.filter(d => (d.to || bill.payer || '').toLowerCase().trim() === personName.toLowerCase().trim());
-      bodyHtml += `
-        <div class="breakdown-section-title" style="margin-top: 14px;">Payments from Group</div>
-        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
-          Paid full bill upfront: <strong>₹${Number(bill.totalAmount || 0).toFixed(2)}</strong>
+  // Renders the inline QR section markup for a bill card.
+  function renderQrSectionHtml(bill, debts, unpaidDebts, receivingUpi) {
+    if (unpaidDebts.length === 0) {
+      return `
+        <div style="text-align: center; color: var(--emerald); font-size: 13px; font-weight: 600; padding: 14px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);">
+          ✓ All debts are settled! No unpaid users for this bill.
         </div>
       `;
-      if (debtsToReceive.length > 0) {
-        debtsToReceive.forEach(d => {
-          const debtorPaid = (d.settled === true || d.status === 'settled' || d.paid === true);
-          bodyHtml += `
-            <div class="drawer-item" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
-              <div>
-                <span><strong>${escapeHtml(d.from)}</strong> owes you</span>
-                <span style="font-size: 11px; margin-left: 6px; color: ${debtorPaid ? 'var(--emerald)' : 'var(--text-dim)'};">
-                  ${debtorPaid ? '✓ Paid' : '⏱ Pending'}
-                </span>
+    }
+
+    const payerName = bill.payer || 'Payer';
+    const billTitle = bill.title || 'Bill';
+
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">
+          📲 Unpaid QR Codes (${unpaidDebts.length} Pending)
+        </div>
+        <div style="font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
+          <span>Pay to: <strong>${escapeHtml(payerName)}</strong></span>
+          <span>•</span>
+          <span>UPI: <strong style="color: var(--text);">${escapeHtml(receivingUpi)}</strong></span>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="historyApp.editBillUpiId('${bill.id}')" style="padding: 1px 6px; font-size: 10px;" title="Edit receiving UPI ID">Edit</button>
+        </div>
+      </div>
+      <div class="history-qr-grid">
+        ${unpaidDebts.map(d => {
+          const debtAmt = Number(d.amount || 0).toFixed(2);
+          const upiLink = `upi://pay?pa=${encodeURIComponent(receivingUpi)}&pn=${encodeURIComponent(payerName)}&am=${debtAmt}&cu=INR&tn=SplitWise%20${encodeURIComponent(billTitle)}`;
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiLink)}`;
+
+          return `
+            <div class="history-qr-card">
+              <div class="history-qr-title">
+                <strong>${escapeHtml(d.from)}</strong> owes <strong>${escapeHtml(d.to || payerName)}</strong>
               </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <strong style="color: var(--emerald);">₹${Number(d.amount || 0).toFixed(2)}</strong>
-                <button class="btn ${debtorPaid ? 'btn-secondary' : 'btn-primary'} btn-sm" 
-                  onclick="historyApp.toggleDebt('${bill.id}', '${escapeHtml(d.from)}')" 
-                  style="padding: 2px 7px; font-size: 11px;">
-                  ${debtorPaid ? 'Mark Pending' : '✓ Mark Paid'}
-                </button>
+              <div class="history-qr-amount">₹${Number(d.amount || 0).toFixed(2)}</div>
+              <div class="qr-box" style="margin: 4px 0; background: #ffffff; padding: 6px; border-radius: var(--radius-sm); display: inline-block;">
+                <img src="${qrUrl}" alt="UPI QR for ${escapeHtml(d.from)}" style="width: 130px; height: 130px; display: block;">
               </div>
+              <div style="font-size: 11px; color: var(--text-dim);">
+                Scan to pay <strong>₹${Math.round(d.amount)}</strong>
+              </div>
+              <button class="btn btn-primary btn-sm" 
+                onclick="historyApp.toggleDebt('${bill.id}', '${escapeHtml(d.from)}')"
+                style="width: 100%; margin-top: 6px; font-size: 11px; padding: 4px 8px;">
+                ✓ Mark Paid
+              </button>
             </div>
           `;
-        });
-      } else {
-        bodyHtml += `<div style="color: var(--text-muted); font-size: 12px;">No debts to collect from others.</div>`;
-      }
-    }
-
-    bodyEl.innerHTML = bodyHtml;
-
-    if (isPayer) {
-      footerEl.innerHTML = `
-        <span class="badge-status badge-paid" style="padding: 5px 12px;">✓ Paid Entire Bill Upfront</span>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="historyApp.closeBreakdownModal()">Close</button>
-      `;
-    } else if (userDebt) {
-      footerEl.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 12px; color: var(--text-muted);">Debt Status:</span>
-          <span class="badge-status ${isPaid ? 'badge-paid' : 'badge-pending'}" style="padding: 4px 10px;">
-            ${isPaid ? '✓ Payment Settled' : '⏱ Payment Pending'}
-          </span>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn ${isPaid ? 'btn-secondary' : 'btn-primary'} btn-sm" 
-            onclick="historyApp.toggleDebt('${bill.id}', '${escapeHtml(personName)}')">
-            ${isPaid ? 'Mark as Pending' : '✓ Mark as Paid'}
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="historyApp.closeBreakdownModal()">Close</button>
-        </div>
-      `;
-    } else {
-      footerEl.innerHTML = `
-        <span style="font-size: 12px; color: var(--text-muted);">No remaining debt for this bill.</span>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="historyApp.closeBreakdownModal()">Close</button>
-      `;
-    }
-
-    modal.classList.add('show');
-    document.body.classList.add('modal-open');
-    document.documentElement.classList.add('modal-open');
-  }
-
-  // Closes the user breakdown modal dialog.
-  function closeBreakdownModal() {
-    const modal = document.getElementById('user-breakdown-modal');
-    if (modal) modal.classList.remove('show');
-    document.body.classList.remove('modal-open');
-    document.documentElement.classList.remove('modal-open');
-    currentModalBillId = null;
-    currentModalPerson = null;
+        }).join('')}
+      </div>
+    `;
   }
 
   // Toggles payment status of a single person's debt.
@@ -636,10 +462,6 @@ const historyApp = (function () {
     renderStats();
     applyFilters();
 
-    if (currentModalBillId === billId && currentModalPerson) {
-      showUserBreakdown(currentModalBillId, currentModalPerson);
-    }
-
     try {
       await ApiService.bills.updateDebtStatus(billId, personFrom, newStatus);
     } catch (err) {
@@ -658,10 +480,6 @@ const historyApp = (function () {
 
     renderStats();
     applyFilters();
-
-    if (currentModalBillId === billId && currentModalPerson) {
-      showUserBreakdown(currentModalBillId, currentModalPerson);
-    }
 
     try {
       await ApiService.bills.updateDebtStatus(billId, 'all', setSettled);
@@ -712,9 +530,7 @@ const historyApp = (function () {
       } catch (err) {
         console.error('Failed to update UPI ID on server:', err);
       }
-      if (currentModalBillId === billId && currentModalPerson) {
-        showUserBreakdown(billId, currentModalPerson);
-      }
+      applyFilters();
     }
   }
 
@@ -745,14 +561,13 @@ const historyApp = (function () {
     setCategoryFilter,
     applyFilters,
     toggleDrawer,
+    toggleQrSection,
     deleteBill,
     clearAllBills,
     toggleProfileDropdown,
     handleLogout,
     promptEditUpiId,
     toggleTheme,
-    showUserBreakdown,
-    closeBreakdownModal,
     toggleDebt,
     toggleAllDebts,
     editBillUpiId
