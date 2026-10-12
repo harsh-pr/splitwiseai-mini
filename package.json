@@ -1,0 +1,21 @@
+{
+  "name": "splitwiseai-mini",
+  "version": "2.0.0",
+  "description": "SplitWise AI - Intelligent Expense Splitting with Firebase and Google Gemini AI",
+  "main": "api/health.js",
+  "type": "module",
+  "scripts": {
+    "start": "node -e \"console.log('SplitWise AI is configured for Vercel & Firebase deployment.')\"",
+    "dev": "vercel dev"
+  },
+  "keywords": [
+    "splitwise",
+    "expense-splitter",
+    "firebase",
+    "firestore",
+    "vercel",
+    "gemini-ai"
+  ],
+  "author": "harsh-pr",
+  "license": "MIT"
+}

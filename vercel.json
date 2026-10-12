@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/",
+      "destination": "/web/index.html"
+    },
+    {
+      "source": "/index.html",
+      "destination": "/web/index.html"
+    },
+    {
+      "source": "/history.html",
+      "destination": "/web/history.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/web/$1"
+    }
+  ]
+}
