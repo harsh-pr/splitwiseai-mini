@@ -1,4 +1,3 @@
-// Base class for HTTP handlers with CORS, request reading, and JSON responses.
 package com.splitwise.server;
 
 import com.splitwise.db.LocalDatabase;
@@ -18,12 +17,12 @@ public abstract class BaseHandler implements HttpHandler {
 
     protected final LocalDatabase db;
 
-    // Initializes base handler with local database reference
+        // init handler
     public BaseHandler(LocalDatabase db) {
         this.db = db;
     }
 
-    // Handles CORS preflight and delegates request execution
+        // handle cors and delegate
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
@@ -43,10 +42,10 @@ public abstract class BaseHandler implements HttpHandler {
         }
     }
 
-    // Abstract method implemented by specific API route handlers
+        // handle request
     protected abstract void handleRequest(HttpExchange exchange) throws Exception;
 
-    // Reads the incoming HTTP request body string
+        // read request body
     protected String readRequestBody(HttpExchange exchange) throws IOException {
         InputStream is = exchange.getRequestBody();
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -58,7 +57,7 @@ public abstract class BaseHandler implements HttpHandler {
         return baos.toString(StandardCharsets.UTF_8);
     }
 
-    // Sends a JSON response with given HTTP status code
+        // send json response
     protected void sendJson(HttpExchange exchange, int statusCode, Object data) throws IOException {
         String json = JsonUtil.stringify(data);
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
@@ -69,7 +68,7 @@ public abstract class BaseHandler implements HttpHandler {
         }
     }
 
-    // Sends a standard error response as JSON
+        // send error response
     protected void sendError(HttpExchange exchange, int statusCode, String message) throws IOException {
         Map<String, Object> err = new LinkedHashMap<>();
         err.put("success", false);
@@ -77,7 +76,7 @@ public abstract class BaseHandler implements HttpHandler {
         sendJson(exchange, statusCode, err);
     }
 
-    // Retrieves current logged-in user from the Bearer token
+        // get authenticated user
     protected Map<String, Object> getAuthenticatedUser(HttpExchange exchange) {
         String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -87,7 +86,7 @@ public abstract class BaseHandler implements HttpHandler {
         return db.getUserByToken(token);
     }
 
-    // Parses URL query parameters into a key-value map
+        // parse query params
     protected Map<String, String> parseQueryParams(String query) {
         Map<String, String> params = new LinkedHashMap<>();
         if (query == null || query.isEmpty()) return params;

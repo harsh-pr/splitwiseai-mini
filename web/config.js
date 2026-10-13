@@ -1,4 +1,4 @@
-// Stores frontend configuration settings like the API base URL.
+// config
 window.SPLITWISE_CONFIG = {
   API_BASE_URL: '/api'
 };

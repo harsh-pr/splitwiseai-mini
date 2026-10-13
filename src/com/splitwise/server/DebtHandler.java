@@ -1,4 +1,3 @@
-// Handles debt simplification calculations and settlement records.
 package com.splitwise.server;
 
 import com.splitwise.db.LocalDatabase;
@@ -10,12 +9,12 @@ import java.util.*;
 
 public class DebtHandler extends BaseHandler {
 
-    // Initializes debt handler with database reference
+        // init handler
     public DebtHandler(LocalDatabase db) {
         super(db);
     }
 
-    // Routes requests to simplify debts or settle debts
+        // handle request
     @Override
     protected void handleRequest(HttpExchange exchange) throws Exception {
         String path = exchange.getRequestURI().getPath();
@@ -35,7 +34,7 @@ public class DebtHandler extends BaseHandler {
         }
     }
 
-    // Simplifies debt transactions using the cash flow matching algorithm
+        // simplify debts
     private void handleSimplifyDebts(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
         String userId = user != null ? JsonUtil.getString(user, "id", "") : "";
@@ -106,7 +105,7 @@ public class DebtHandler extends BaseHandler {
         sendJson(exchange, 200, res);
     }
 
-    // Records a completed settlement payment between two people
+        // settle debt
     private void handleSettle(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
         String userId = user != null ? JsonUtil.getString(user, "id", "") : "guest";

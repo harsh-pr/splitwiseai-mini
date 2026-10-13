@@ -1,6 +1,6 @@
-/* SplitWise - Pure Monochrome Minimalist Styles (Real Blacks & Real Whites) */
+/* SplitWise styles */
 :root {
-  /* Real Monochrome Dark Theme (Pitch Black, Zero Blue Tint, Zero Green Highlights) */
+  /* dark theme */
   --bg: #000000;
   --surface: #0e0e0e;
   --surface-alt: #171717;
@@ -31,7 +31,7 @@
 }
 
 [data-theme="light"] {
-  /* Clean Monochrome Light Theme */
+  /* light theme */
   --bg: #ffffff;
   --surface: #fafafa;
   --surface-alt: #f4f4f5;
@@ -1254,7 +1254,7 @@ body {
   color: var(--text);
 }
 
-/* Step 5: Summary & Debts - Collection Progress & QRs (Screenshot 4) */
+/* Step 5: Collection Progress & QRs */
 .collection-progress-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1393,7 +1393,7 @@ body {
   display: block;
 }
 
-/* Step 5: Participant Breakdown & Itemized Orders (Screenshot 5) */
+/* Step 5: Participant Breakdown & Itemized Orders */
 .summary-breakdown-box {
   background: var(--surface);
   border: 1px solid var(--border);

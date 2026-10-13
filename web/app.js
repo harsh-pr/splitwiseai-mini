@@ -1,4 +1,3 @@
-// Controls the bill splitting wizard, AI chat, live items editor, and payment settlement.
 const app = (function () {
   let currentUser = null;
   let currentStep = 1;
@@ -23,7 +22,7 @@ const app = (function () {
   let currentBillingPeriod = 'Monthly Bill (30 Days)';
   let currentBillTotal = 0.0;
 
-  // Initializes the application, loads user state, themes, and binds event listeners.
+    // init
   function init() {
     initTheme();
     checkAuth();
@@ -35,7 +34,7 @@ const app = (function () {
     renderPayerSelect();
   }
 
-  // Sets up scrolling and escape key event listeners for the authentication modal.
+    // init modal scroll
   function setupAuthModalEvents() {
     const modal = document.getElementById('auth-modal');
     if (modal) {
@@ -61,7 +60,7 @@ const app = (function () {
     });
   }
 
-  // Configures auto-resizing and enter-key submission for the chat input box.
+    // init chat textarea
   function setupChatInput() {
     const input = document.getElementById('chat-input-box');
     if (!input) return;
@@ -82,14 +81,14 @@ const app = (function () {
     });
   }
 
-  // Loads and applies the saved color theme from storage.
+    // init theme
   function initTheme() {
     const saved = localStorage.getItem('splitwise_theme') || 'dark';
     document.documentElement.setAttribute('data-theme', saved);
     updateThemeButton(saved);
   }
 
-  // Switches between dark and light themes and saves the preference.
+    // toggle theme
   function toggleTheme() {
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
     const next = current === 'dark' ? 'light' : 'dark';
@@ -98,7 +97,7 @@ const app = (function () {
     updateThemeButton(next);
   }
 
-  // Updates the theme toggle button icon and tooltip.
+    // update theme button
   function updateThemeButton(theme) {
     const btn = document.getElementById('theme-toggle-btn');
     const icon = document.getElementById('theme-icon');
@@ -110,7 +109,7 @@ const app = (function () {
     }
   }
 
-  // Updates displayed UPI IDs across menus and inputs.
+    // update upi display
   function updateUpiDisplay() {
     const menuUpi = document.getElementById('menu-upi-id');
     const displayUpi = document.getElementById('display-upi-id');
@@ -123,7 +122,7 @@ const app = (function () {
     }
   }
 
-  // Prompts user to change the default account UPI ID.
+    // prompt edit upi
   function promptEditUpiId() {
     const entered = prompt('Enter your default account UPI ID (e.g. name@okhdfcbank):', defaultUpiId);
     if (entered && entered.trim().length > 0) {
@@ -141,7 +140,7 @@ const app = (function () {
     }
   }
 
-  // Updates the receiving UPI ID for the current bill as the user types.
+    // handle upi input
   function handleUpiInput(val) {
     if (val !== undefined && val !== null) {
       const clean = String(val).trim();
@@ -155,7 +154,7 @@ const app = (function () {
     }
   }
 
-  // Saves a manual UPI ID entered for the current bill.
+    // update upi id
   function updateUpiId(manualVal) {
     const customInput = document.getElementById('custom-upi-input');
     const val = (typeof manualVal === 'string' ? manualVal : (customInput ? customInput.value : '')).trim();
@@ -169,7 +168,7 @@ const app = (function () {
     }
   }
 
-  // Checks if a user session exists and sets current user details.
+    // check auth
   async function checkAuth() {
     try {
       currentUser = await ApiService.auth.getMe();
@@ -182,7 +181,7 @@ const app = (function () {
     }
   }
 
-  // Updates the navigation bar based on whether a user is logged in.
+    // update auth ui
   function updateAuthUI() {
     const loginBtn = document.getElementById('auth-login-btn');
     const dropdownWrap = document.getElementById('profile-dropdown-wrap');
@@ -203,7 +202,7 @@ const app = (function () {
     }
   }
 
-  // Opens or closes the profile dropdown menu in the header.
+    // toggle profile dropdown
   function toggleProfileDropdown(e) {
     if (e) e.stopPropagation();
     const menu = document.getElementById('profile-dropdown-menu');
@@ -212,7 +211,7 @@ const app = (function () {
     }
   }
 
-  // Logs out the user and clears session state.
+    // logout
   function handleLogout() {
     const menu = document.getElementById('profile-dropdown-menu');
     if (menu) menu.classList.remove('show');
@@ -226,7 +225,7 @@ const app = (function () {
     });
   }
 
-  // Opens the login or sign-up modal dialog.
+    // open auth modal
   function openAuthModal() {
     authMode = 'login';
     const b = document.getElementById('auth-banner');
@@ -246,7 +245,7 @@ const app = (function () {
     }, 100);
   }
 
-  // Closes the authentication modal dialog.
+    // close auth modal
   function closeAuthModal() {
     const modal = document.getElementById('auth-modal');
     if (modal) modal.classList.remove('show');
@@ -254,7 +253,7 @@ const app = (function () {
     document.documentElement.classList.remove('modal-open');
   }
 
-  // Switches the modal between login and sign-up modes.
+    // toggle auth mode
   function toggleAuthMode(e) {
     if (e) e.preventDefault();
     authMode = (authMode === 'login') ? 'register' : 'login';
@@ -267,7 +266,7 @@ const app = (function () {
     renderAuthModal();
   }
 
-  // Updates modal text and fields based on login or sign-up mode.
+    // update auth modal ui
   function renderAuthModal() {
     const isLogin = (authMode === 'login');
     const titleEl = document.getElementById('auth-modal-title');
@@ -283,7 +282,7 @@ const app = (function () {
     if (toggleLink) toggleLink.textContent = isLogin ? 'Sign Up' : 'Login';
   }
 
-  // Submits the login or registration form to the backend.
+    // submit auth
   async function handleAuthSubmit(e) {
     e.preventDefault();
     const emailEl = document.getElementById('auth-email');
@@ -327,7 +326,7 @@ const app = (function () {
     }
   }
 
-  // Moves wizard navigation to the specified step number.
+    // go to step
   function goToStep(step) {
     if (step < 1 || step > 5) return;
     currentStep = step;
@@ -376,7 +375,7 @@ const app = (function () {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Displays a status notification message banner at the top.
+    // show banner
   function showBanner(msg, type = 'success', timeout = 4000) {
     const b = document.getElementById('status-banner');
     if (!b) return;
@@ -387,7 +386,7 @@ const app = (function () {
     }
   }
 
-  // Selects an expense category and updates UI elements.
+    // select category
   function selectCategory(cat, el) {
     currentCategory = cat;
     currentUtilityMode = 'auto';
@@ -398,7 +397,7 @@ const app = (function () {
     updateCategoryUI();
   }
 
-  // Updates placeholder text and quick preset buttons for the active category.
+    // update category ui
   function updateCategoryUI() {
     const titleInput = document.getElementById('direct-split-title');
     if (titleInput) {
@@ -445,7 +444,7 @@ const app = (function () {
     updateDirectSplitButton();
   }
 
-  // Fills the direct split title input with a preset value.
+    // set direct split title
   function setDirectSplitTitle(val) {
     const titleInput = document.getElementById('direct-split-title');
     if (titleInput) {
@@ -454,7 +453,7 @@ const app = (function () {
     }
   }
 
-  // Updates the title of the bill across the UI.
+    // update split title
   function updateSplitTitle(newTitle) {
     if (newTitle !== undefined && newTitle !== null) {
       currentMerchant = newTitle.trim() || 'Split Expense';
@@ -469,7 +468,7 @@ const app = (function () {
     }
   }
 
-  // Shows the title input box so the user can edit the bill name.
+    // start editing title
   function startEditingTitle(step) {
     if (step === 3) {
       const viewEl = document.getElementById('step3-title-view');
@@ -496,7 +495,7 @@ const app = (function () {
     }
   }
 
-  // Saves the edited bill title and updates the screen.
+    // save editing title
   function saveEditingTitle(step) {
     let input = null;
     if (step === 3) {
@@ -522,7 +521,7 @@ const app = (function () {
     showBanner(`Split title updated to "${currentMerchant}"!`, 'success');
   }
 
-  // Closes the title editing box without saving.
+    // cancel editing title
   function cancelEditingTitle(step) {
     if (step === 3) {
       const viewEl = document.getElementById('step3-title-view');
@@ -537,7 +536,7 @@ const app = (function () {
     }
   }
 
-  // Shows category-specific starter instructions in the AI chat box.
+    // render chat starter instructions
   function setupStep3CategoryGreeting() {
     const isDirectSplit = currentCategoryMeta && currentCategoryMeta.directSplit;
     const isItemizedChat = isDirectSplit && (!currentCategoryMeta.hasFixedAmount || currentItems.length === 0);
@@ -573,7 +572,7 @@ const app = (function () {
     }
   }
 
-  // Updates direct split button text when an amount is typed.
+    // update direct split button
   function updateDirectSplitButton() {
     const amtInput = document.getElementById('direct-split-amount');
     const btn = document.getElementById('btn-direct-split');
@@ -586,7 +585,7 @@ const app = (function () {
     }
   }
 
-  // Sets up a direct bill without receipt scanning and proceeds to step 3.
+    // handle direct split
   function handleDirectSplit() {
     const titleInput = document.getElementById('direct-split-title');
     const amtInput = document.getElementById('direct-split-amount');
@@ -653,7 +652,7 @@ const app = (function () {
     goToStep(3);
   }
 
-  // Sets up drag-and-drop and file selection for bill uploads.
+    // init upload
   function setupDropzone() {
     const dropzone = document.getElementById('receipt-dropzone');
     const input = document.getElementById('receipt-file-input');
@@ -683,7 +682,7 @@ const app = (function () {
     });
   }
 
-  // Previews the selected image or PDF receipt.
+    // show preview
   function handleReceiptFile(file) {
     currentReceiptFile = file;
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
@@ -724,7 +723,7 @@ const app = (function () {
     showBanner(`Selected: ${file.name}. Click "Scan Receipt with AI" to analyze.`, 'success');
   }
 
-  // Sends receipt image or document to AI to extract items and amounts.
+    // scan receipt with ai
   async function scanReceiptWithAI() {
     if (!currentReceiptFile) {
       alert('Please upload or select a bill/receipt photo or PDF first.');
@@ -847,7 +846,7 @@ const app = (function () {
     }
   }
 
-  // Reads a file and converts it into a base64 encoded string.
+    // read file as base64
   function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
       const r = new FileReader();
@@ -857,7 +856,7 @@ const app = (function () {
     });
   }
 
-  // Adds the currently logged in user to participants if clicked
+    // add current user to participants
   function addCurrentUserToParticipants() {
     if (currentUser && currentUser.name && !currentParticipants.includes(currentUser.name)) {
       currentParticipants.push(currentUser.name);
@@ -868,7 +867,7 @@ const app = (function () {
     }
   }
 
-  // Renders friend name badges with remove buttons.
+    // render friends chips
   function renderFriendsChips() {
     const container = document.getElementById('friends-chips-container');
     if (!container) return;
@@ -901,7 +900,7 @@ const app = (function () {
     container.innerHTML = html;
   }
 
-  // Adds a new friend to the bill participants list.
+    // handle add friend
   function handleAddFriend(e) {
     if (e) e.preventDefault();
     const input = document.getElementById('add-friend-input');
@@ -917,7 +916,7 @@ const app = (function () {
     if (input) input.value = '';
   }
 
-  // Removes a friend from participants and item assignments.
+    // remove friend
   function removeFriend(name) {
     currentParticipants = currentParticipants.filter(p => p !== name);
     if (currentPayer === name) {
@@ -934,7 +933,7 @@ const app = (function () {
     renderItemsPanel();
   }
 
-  // Populates the dropdown menu used to choose who paid the bill.
+    // render payer select
   function renderPayerSelect() {
     const sel = document.getElementById('bill-payer-select');
     if (!sel) return;
@@ -954,12 +953,12 @@ const app = (function () {
     `).join('');
   }
 
-  // Sets which person paid for the bill.
+    // update payer
   function updatePayer(val) {
     currentPayer = val;
   }
 
-  // Prompts user to manually add a new item to the bill.
+    // add new dish item
   function addNewDishItem() {
     const categoryPrompts = {
       utilities: 'utility charge (e.g. Wi-Fi, Water Can, Electricity)',
@@ -986,7 +985,7 @@ const app = (function () {
     renderItemsPanel();
   }
 
-  // Renders line items, prices, quantities, and participant assignment tags.
+    // render items panel
   function renderItemsPanel() {
     const nameEl = document.getElementById('items-merchant-name');
     const totalEl = document.getElementById('items-total-display');
@@ -1132,7 +1131,7 @@ const app = (function () {
     listEl.innerHTML = headerHtml + itemsHtml;
   }
 
-  // Updates a property like name, price, or quantity for a line item.
+    // update item prop
   function updateItemProp(index, prop, value) {
     if (currentItems[index]) {
       const item = currentItems[index];
@@ -1158,7 +1157,7 @@ const app = (function () {
     }
   }
 
-  // Increases or decreases the quantity of a line item by 1.
+    // step item qty
   function stepItemQty(idx, delta) {
     if (currentItems[idx]) {
       const item = currentItems[idx];
@@ -1187,7 +1186,7 @@ const app = (function () {
     }
   }
 
-  // Toggles assignment of a line item for a specific friend.
+    // toggle item assignee
   function toggleItemAssignee(itemIdx, friendName) {
     const item = currentItems[itemIdx];
     if (!item) return;
@@ -1201,31 +1200,31 @@ const app = (function () {
     renderItemsPanel();
   }
 
-  // Deletes a line item from the bill.
+    // remove item
   function removeItem(index) {
     currentItems.splice(index, 1);
     renderItemsPanel();
   }
 
-  // Updates the tax amount on the bill.
+    // update tax
   function updateTax(val) {
     currentTax = Math.max(0, parseFloat(val) || 0);
     renderItemsPanel();
   }
 
-  // Toggles whether taxes are already included in item prices.
+    // toggle tax inclusive
   function toggleTaxInclusive() {
     currentTaxInclusive = !currentTaxInclusive;
     renderItemsPanel();
   }
 
-  // Updates the tip or service charge amount.
+    // update tip
   function updateTip(val) {
     currentTip = Math.max(0, parseFloat(val) || 0);
     renderItemsPanel();
   }
 
-  // Sends a predefined suggestion prompt into the chat.
+    // send quick prompt
   function sendQuickPrompt(text) {
     if (text === 'Split all items equally among everyone') {
       if (currentParticipants.length === 0) {
@@ -1255,14 +1254,14 @@ const app = (function () {
     }
   }
 
-  // Helper to filter out placeholder items created during splits.
+    // is dummy item name
   function isDummyItemName(name) {
     if (!name || typeof name !== 'string') return false;
     const lower = name.trim().toLowerCase();
     return lower.includes('remaining') || lower.includes('unallocated') || lower === 'balance' || lower === 'difference';
   }
 
-  // Sends chat messages to AI to dynamically update split allocations.
+    // handle chat submit
   async function handleChatSubmit(e) {
     if (e && e.preventDefault) e.preventDefault();
     const input = document.getElementById('chat-input-box');
@@ -1389,7 +1388,7 @@ const app = (function () {
     }
   }
 
-  // Adds a message bubble to the chat conversation history.
+    // append msg
   function appendMsg(text, sender) {
     const box = document.getElementById('chat-messages');
     if (!box) return;
@@ -1400,7 +1399,7 @@ const app = (function () {
     box.scrollTop = box.scrollHeight;
   }
 
-  // Calculates who owes whom and generates UPI payment QR cards.
+    // calculate split
   async function computeDebtsAndRenderQRs() {
     let itemsSum = 0;
     currentItems.forEach(it => itemsSum += Number(it.price || 0));
@@ -1471,7 +1470,7 @@ const app = (function () {
     }).join('');
   }
 
-  // Toggles whether a friend has settled their debt.
+    // toggle debt paid
   function toggleDebtPaid(friendName) {
     paidStatusMap[friendName] = !paidStatusMap[friendName];
     computeDebtsAndRenderQRs();
@@ -1480,7 +1479,7 @@ const app = (function () {
     }
   }
 
-  // Expands or collapses itemized order details for a participant.
+    // toggle person breakdown
   function togglePersonBreakdown(name) {
     if (expandedBreakdowns[name] === undefined) {
       expandedBreakdowns[name] = false;
@@ -1492,7 +1491,7 @@ const app = (function () {
     if (chevEl) chevEl.textContent = expandedBreakdowns[name] ? '∧' : '∨';
   }
 
-  // Renders final overview metrics, progress bars, QR cards, and breakdown.
+    // render results
   async function renderSummaryStep() {
     let itemsSum = 0;
     currentItems.forEach(it => itemsSum += Number(it.price || 0));
@@ -1703,7 +1702,7 @@ const app = (function () {
     }
   }
 
-  // Saves the complete bill, items, and debts to local storage history.
+    // save split to history
   async function saveSplitToHistory() {
     const btn = document.getElementById('btn-save-history');
     btn.disabled = true;
@@ -1747,7 +1746,7 @@ const app = (function () {
     }
   }
 
-  // Escapes special HTML characters to prevent XSS.
+    // escape html
   function escapeHtml(str) {
     if (!str) return '';
     return String(str)

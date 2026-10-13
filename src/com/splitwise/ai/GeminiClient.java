@@ -1,4 +1,3 @@
-// Client that connects to Google Gemini API for OCR receipt analysis and AI split chat.
 package com.splitwise.ai;
 
 import com.splitwise.util.JsonUtil;
@@ -24,7 +23,7 @@ public class GeminiClient {
         "gemini-2.5-flash"
     };
 
-    // Initializes client with API key and sets up HTTP client
+        // init client
     public GeminiClient(String apiKey) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
         this.httpClient = HttpClient.newBuilder()
@@ -32,12 +31,12 @@ public class GeminiClient {
                 .build();
     }
 
-    // Checks if a valid Gemini API key is configured
+        // check configured
     public boolean isConfigured() {
         return apiKey != null && !apiKey.isEmpty() && !apiKey.startsWith("YOUR_");
     }
 
-    // Extracts merchant, line items, taxes, and total from a bill image using Gemini OCR
+        // analyze bill image
     public Map<String, Object> analyzeReceipt(String base64Image, String mimeType, String category) throws Exception {
         if (!isConfigured()) {
             throw new IllegalStateException("GEMINI_API_KEY is not configured in .env file.");
@@ -323,7 +322,7 @@ public class GeminiClient {
         return parsed;
     }
 
-    // Finds the best item to absorb minor OCR rounding differences
+        // adjust rounding difference
     private Map<String, Object> findBestTargetItemForAdjustment(List<Map<String, Object>> items) {
         if (items == null || items.isEmpty()) return null;
         for (Map<String, Object> it : items) {
@@ -345,7 +344,7 @@ public class GeminiClient {
         return largest;
     }
 
-    // Strips markdown code block wrappers from JSON responses
+        // clean json response
     private String cleanJsonMarkdown(String raw) {
         if (raw == null) return "{}";
         String s = raw.trim();
@@ -361,7 +360,7 @@ public class GeminiClient {
         return s.trim();
     }
 
-    // Processes user split instructions and updates items and participants
+        // split chat
     public Map<String, Object> splitChat(String userPrompt, List<Map<String, Object>> items, List<String> participants, String category, String currentPayer, double targetBillTotal) throws Exception {
         if (!isConfigured()) {
             throw new IllegalStateException("GEMINI_API_KEY is not configured in .env file.");
@@ -696,22 +695,22 @@ public class GeminiClient {
         return chatRes;
     }
 
-    // Overloaded helper for split chat with default target total
+        // split chat overload
     public Map<String, Object> splitChat(String userPrompt, List<Map<String, Object>> items, List<String> participants, String category, String currentPayer) throws Exception {
         return splitChat(userPrompt, items, participants, category, currentPayer, 0.0);
     }
 
-    // Overloaded helper for split chat with default payer
+        // split chat overload
     public Map<String, Object> splitChat(String userPrompt, List<Map<String, Object>> items, List<String> participants, String category) throws Exception {
         return splitChat(userPrompt, items, participants, category, "", 0.0);
     }
 
-    // Overloaded helper for split chat with default category
+        // split chat overload
     public Map<String, Object> splitChat(String userPrompt, List<Map<String, Object>> items, List<String> participants) throws Exception {
         return splitChat(userPrompt, items, participants, "restaurant", "", 0.0);
     }
 
-    // Identifies if an item is a tax or GST charge
+        // is tax item
     public static boolean isTaxLineItem(String name, String category) {
         if (name == null) return false;
         String s = name.trim().toLowerCase();
@@ -722,7 +721,7 @@ public class GeminiClient {
                 || s.matches(".*\\b(tax|taxes|vat)\\b.*");
     }
 
-    // Identifies if an item is a fee or extra charge
+        // is tip or fee item
     public static boolean isFeeOrChargeLineItem(String name, String category) {
         if (name == null) return false;
         String s = name.trim().toLowerCase();
@@ -738,7 +737,7 @@ public class GeminiClient {
                 || s.contains("handling fee");
     }
 
-    // Checks if an item is a placeholder or balance adjustment item
+        // is dummy item
     private boolean isDummyItem(String name) {
         if (name == null) return false;
         String lower = name.trim().toLowerCase();
@@ -753,7 +752,7 @@ public class GeminiClient {
                 || isFeeOrChargeLineItem(lower, "");
     }
 
-    // Checks if an item is a generic placeholder name
+        // is generic name
     private boolean isPlaceholderItem(String name) {
         if (name == null) return false;
         String lower = name.trim().toLowerCase();
@@ -768,7 +767,7 @@ public class GeminiClient {
                 || lower.equals("society maintenance");
     }
 
-    // Sends prompt to Gemini API with fallback across multiple models
+        // call gemini api
     private String executeWithWaterfall(String jsonPayload) throws Exception {
         Exception lastException = null;
 

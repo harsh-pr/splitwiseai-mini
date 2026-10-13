@@ -1,11 +1,10 @@
-// Utility to parse JSON strings and convert Java objects to JSON.
 package com.splitwise.util;
 
 import java.util.*;
 
 public class JsonUtil {
 
-    // Converts an object, map, or list into a compact JSON string
+        // stringify
     public static String stringify(Object obj) {
         if (obj == null) return "null";
         if (obj instanceof String) {
@@ -53,14 +52,14 @@ public class JsonUtil {
         return escapeString(obj.toString());
     }
 
-    // Formats an object into a pretty-printed JSON string
+        // pretty print
     public static String stringifyPretty(Object obj) {
         StringBuilder sb = new StringBuilder();
         stringifyPretty(obj, sb, 0);
         return sb.toString();
     }
 
-    // Helper that formats nested objects with line breaks and indentation
+        // format value
     private static void stringifyPretty(Object obj, StringBuilder sb, int indentLevel) {
         if (obj == null) {
             sb.append("null");
@@ -142,14 +141,14 @@ public class JsonUtil {
         sb.append(escapeString(obj.toString()));
     }
 
-    // Appends indentation spaces to the string builder
+        // indent
     private static void appendIndent(StringBuilder sb, int count) {
         for (int i = 0; i < count; i++) {
             sb.append("  ");
         }
     }
 
-    // Escapes special characters for valid JSON strings
+        // escape string
     private static String escapeString(String s) {
         StringBuilder sb = new StringBuilder("\"");
         for (int i = 0; i < s.length(); i++) {
@@ -174,7 +173,7 @@ public class JsonUtil {
         return sb.toString();
     }
 
-    // Parses a JSON string into Java Maps, Lists, or primitive values
+        // parse json
     public static Object parse(String json) {
         if (json == null) return null;
         json = json.trim();
@@ -186,7 +185,7 @@ public class JsonUtil {
         return parser.parseValue();
     }
 
-    // Parses a JSON string directly into a Map
+        // parse map
     @SuppressWarnings("unchecked")
     public static Map<String, Object> parseObject(String json) {
         Object val = parse(json);
@@ -196,7 +195,7 @@ public class JsonUtil {
         return new LinkedHashMap<>();
     }
 
-    // Parses a JSON string directly into a List
+        // parse list
     @SuppressWarnings("unchecked")
     public static List<Object> parseArray(String json) {
         Object val = parse(json);
@@ -206,13 +205,13 @@ public class JsonUtil {
         return new ArrayList<>();
     }
 
-    // Safely reads a string from a map with fallback
+        // get string
     public static String getString(Map<String, Object> map, String key, String defaultVal) {
         if (map == null || !map.containsKey(key) || map.get(key) == null) return defaultVal;
         return String.valueOf(map.get(key));
     }
 
-    // Safely reads a floating point number from a map with fallback
+        // get double
     public static double getDouble(Map<String, Object> map, String key, double defaultVal) {
         if (map == null || !map.containsKey(key) || map.get(key) == null) return defaultVal;
         Object v = map.get(key);
@@ -224,12 +223,12 @@ public class JsonUtil {
         }
     }
 
-    // Safely reads an integer from a map with fallback
+        // get int
     public static int getInt(Map<String, Object> map, String key, int defaultVal) {
         return (int) getDouble(map, key, defaultVal);
     }
 
-    // Safely reads a boolean from a map with fallback
+        // get boolean
     public static boolean getBoolean(Map<String, Object> map, String key, boolean defaultVal) {
         if (map == null || !map.containsKey(key) || map.get(key) == null) return defaultVal;
         Object v = map.get(key);
@@ -237,7 +236,7 @@ public class JsonUtil {
         return "true".equalsIgnoreCase(String.valueOf(v));
     }
 
-    // Safely reads a list from a map or returns an empty list
+        // get list
     @SuppressWarnings("unchecked")
     public static List<Object> getList(Map<String, Object> map, String key) {
         if (map == null || !map.containsKey(key) || !(map.get(key) instanceof List)) {
@@ -246,7 +245,7 @@ public class JsonUtil {
         return (List<Object>) map.get(key);
     }
 
-    // Safely reads a nested map from a map or returns an empty map
+        // get map
     @SuppressWarnings("unchecked")
     public static Map<String, Object> getMap(Map<String, Object> map, String key) {
         if (map == null || !map.containsKey(key) || !(map.get(key) instanceof Map)) {
@@ -259,19 +258,19 @@ public class JsonUtil {
         private final String src;
         private int idx = 0;
 
-        // Initializes parser with input JSON string
+                // parser constructor
         Parser(String src) {
             this.src = src;
         }
 
-        // Advances the index past whitespace characters
+                // skip whitespace
         private void skipWhitespace() {
             while (idx < src.length() && (Character.isWhitespace(src.charAt(idx)) || src.charAt(idx) == '\uFEFF')) {
                 idx++;
             }
         }
 
-        // Parses the next JSON value based on the current character
+                // parse value
         Object parseValue() {
             skipWhitespace();
             if (idx >= src.length()) return null;
@@ -285,7 +284,7 @@ public class JsonUtil {
             throw new RuntimeException("Unexpected character in JSON: " + c + " at index " + idx);
         }
 
-        // Parses a JSON object enclosed in curly braces
+                // parse object
         Map<String, Object> parseObject() {
             Map<String, Object> map = new LinkedHashMap<>();
             idx++;
@@ -318,7 +317,7 @@ public class JsonUtil {
             return map;
         }
 
-        // Parses a JSON array enclosed in square brackets
+                // parse array
         List<Object> parseArray() {
             List<Object> list = new ArrayList<>();
             idx++;
@@ -344,7 +343,7 @@ public class JsonUtil {
             return list;
         }
 
-        // Parses a quoted JSON string with escape sequence handling
+                // parse string
         String parseString() {
             if (src.charAt(idx) != '"') {
                 throw new RuntimeException("Expected '\"' at index " + idx);
@@ -384,7 +383,7 @@ public class JsonUtil {
             return sb.toString();
         }
 
-        // Parses a true or false JSON literal
+                // parse boolean
         Boolean parseBoolean() {
             if (src.startsWith("true", idx)) {
                 idx += 4;
@@ -397,7 +396,7 @@ public class JsonUtil {
             throw new RuntimeException("Invalid boolean literal at index " + idx);
         }
 
-        // Parses a null JSON literal
+                // parse null
         Object parseNull() {
             if (src.startsWith("null", idx)) {
                 idx += 4;
@@ -406,7 +405,7 @@ public class JsonUtil {
             throw new RuntimeException("Invalid null literal at index " + idx);
         }
 
-        // Parses a numeric JSON literal into Long, Double, or Integer
+                // parse number
         Number parseNumber() {
             int start = idx;
             if (src.charAt(idx) == '-') idx++;

@@ -1,4 +1,3 @@
-// Manages local JSON storage for user accounts, bills, and settlements.
 package com.splitwise.db;
 
 import com.splitwise.util.JsonUtil;
@@ -29,12 +28,12 @@ public class LocalDatabase {
     private final Map<String, Map<String, Map<String, Object>>> userBills = new LinkedHashMap<>();
     private final Map<String, List<Map<String, Object>>> userSettlements = new LinkedHashMap<>();
 
-    // Initializes database in the given directory using default filename
+        // init db
     public LocalDatabase(String dataDirName) {
         this(dataDirName, "db.json");
     }
 
-    // Initializes database paths, directories, and loads cached data
+        // init db paths
     public LocalDatabase(String dataDirName, String legacyFileName) {
         this.dataDir = Paths.get(dataDirName).toAbsolutePath().normalize();
         this.usersPath = this.dataDir.resolve("users.json");
@@ -45,7 +44,7 @@ public class LocalDatabase {
         load();
     }
 
-    // Creates storage directories if they do not exist
+        // ensure directories
     private void initDirectories() {
         try {
             if (!Files.exists(dataDir)) {
@@ -59,7 +58,7 @@ public class LocalDatabase {
         }
     }
 
-    // Reads users and bill files into memory caches
+        // load from disk
     public void load() {
         lock.writeLock().lock();
         try {
@@ -150,7 +149,7 @@ public class LocalDatabase {
         }
     }
 
-    // Migrates older single-file database to user-partitioned files
+        // migrate legacy db
     private void migrateLegacyDb() {
         try {
             String content = Files.readString(legacyDbPath, StandardCharsets.UTF_8);
@@ -212,7 +211,7 @@ public class LocalDatabase {
         }
     }
 
-    // Saves users map to users.json file atomically
+        // save users
     private void saveUsersInternal() {
         try {
             Map<String, Object> root = new LinkedHashMap<>();
@@ -228,7 +227,7 @@ public class LocalDatabase {
         }
     }
 
-    // Saves a user's bills and settlements to their personal JSON file
+        // save user bills
     private void saveUserBillsInternal(String userId) {
         try {
             if (!Files.exists(billsDir)) {
@@ -256,7 +255,7 @@ public class LocalDatabase {
         }
     }
 
-    // Creates a new user account with hashed password and salt
+        // register user
     public Map<String, Object> registerUser(String name, String email, String password) {
         lock.writeLock().lock();
         try {
@@ -288,7 +287,7 @@ public class LocalDatabase {
         }
     }
 
-    // Verifies user credentials and returns user details if correct
+        // login user
     public Map<String, Object> authenticate(String email, String password) {
         lock.readLock().lock();
         try {
@@ -311,7 +310,7 @@ public class LocalDatabase {
         }
     }
 
-    // Generates a session token for an authenticated user
+        // create session
     public String createSession(String userId) {
         lock.writeLock().lock();
         try {
@@ -323,7 +322,7 @@ public class LocalDatabase {
         }
     }
 
-    // Finds user associated with an active session token
+        // get user by token
     public Map<String, Object> getUserByToken(String token) {
         if (token == null || token.trim().isEmpty()) return null;
         lock.readLock().lock();
@@ -337,7 +336,7 @@ public class LocalDatabase {
         }
     }
 
-    // Logs out user by deleting their session token
+        // logout session
     public void removeSession(String token) {
         if (token == null) return;
         lock.writeLock().lock();
@@ -348,7 +347,7 @@ public class LocalDatabase {
         }
     }
 
-    // Removes sensitive password hash and salt from user object
+        // sanitize user
     private Map<String, Object> sanitizeUser(Map<String, Object> user) {
         Map<String, Object> clean = new LinkedHashMap<>(user);
         clean.remove("passwordHash");
@@ -356,7 +355,7 @@ public class LocalDatabase {
         return clean;
     }
 
-    // Saves a new bill to database and writes to disk
+        // save bill
     public Map<String, Object> addBill(Map<String, Object> bill) {
         lock.writeLock().lock();
         try {
@@ -379,7 +378,7 @@ public class LocalDatabase {
         }
     }
 
-    // Retrieves all bills belonging to a user sorted by date
+        // get user bills
     public List<Map<String, Object>> getBills(String userId) {
         lock.readLock().lock();
         try {
@@ -401,7 +400,7 @@ public class LocalDatabase {
         }
     }
 
-    // Deletes a bill from database and updates disk file
+        // delete bill
     public boolean deleteBill(String billId, String userId) {
         lock.writeLock().lock();
         try {
@@ -428,7 +427,7 @@ public class LocalDatabase {
         }
     }
 
-    // Updates settlement status of a debt within a bill
+        // update debt status
     public boolean updateBillDebtStatus(String billId, String personFrom, boolean settled, String userId) {
         lock.writeLock().lock();
         try {
@@ -472,7 +471,7 @@ public class LocalDatabase {
         }
     }
 
-    // Updates the receiving UPI ID for a bill
+        // update bill upi
     public boolean updateBillUpi(String billId, String newUpiId, String userId) {
         lock.writeLock().lock();
         try {
@@ -500,7 +499,7 @@ public class LocalDatabase {
         }
     }
 
-    // Records a completed debt settlement payment
+        // record settlement
     public void addSettlement(Map<String, Object> settlement) {
         lock.writeLock().lock();
         try {
@@ -517,7 +516,7 @@ public class LocalDatabase {
         }
     }
 
-    // Returns all settlement records for a user
+        // get user settlements
     public List<Map<String, Object>> getSettlements(String userId) {
         lock.readLock().lock();
         try {

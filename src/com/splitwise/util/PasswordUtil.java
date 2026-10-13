@@ -1,4 +1,3 @@
-// Utility for creating salts and securely hashing passwords.
 package com.splitwise.util;
 
 import java.security.MessageDigest;
@@ -10,14 +9,14 @@ public class PasswordUtil {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    // Generates a random cryptographic salt
+        // generate salt
     public static String generateSalt() {
         byte[] salt = new byte[16];
         RANDOM.nextBytes(salt);
         return Base64.getEncoder().encodeToString(salt);
     }
 
-    // Hashes a password with a salt using SHA-256
+        // hash password
     public static String hashPassword(String password, String salt) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -29,7 +28,7 @@ public class PasswordUtil {
         }
     }
 
-    // Checks if a password matches the stored hash
+        // verify password
     public static boolean verifyPassword(String password, String salt, String expectedHash) {
         String computedHash = hashPassword(password, salt);
         return MessageDigest.isEqual(computedHash.getBytes(), expectedHash.getBytes());

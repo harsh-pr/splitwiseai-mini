@@ -1,4 +1,3 @@
-// Simplifies debts between people using greedy cash flow matching.
 package com.splitwise.dsa;
 
 import java.util.*;
@@ -10,17 +9,17 @@ public class DebtSimplifier {
         public String to;
         public double amount;
 
-        // Creates an empty transaction
+                // constructor
         public Transaction() {}
 
-        // Creates a transaction from one person to another with a rounded amount
+                // constructor with rounding
         public Transaction(String from, String to, double amount) {
             this.from = from;
             this.to = to;
             this.amount = Math.round(amount * 100.0) / 100.0;
         }
 
-        // Converts transaction data into a map
+                // to map
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("from", from);
@@ -29,7 +28,7 @@ public class DebtSimplifier {
             return map;
         }
 
-        // Returns a human readable string describing the payment
+                // to string
         @Override
         public String toString() {
             return String.format("%s pays %s: ₹%.2f", from, to, amount);
@@ -40,14 +39,14 @@ public class DebtSimplifier {
         public String name;
         public double netAmount;
 
-        // Stores a person's name and their net balance
+                // person balance holder
         public ParticipantBalance(String name, double netAmount) {
             this.name = name;
             this.netAmount = netAmount;
         }
     }
 
-    // Minimizes total transactions needed to settle all debts
+        // simplify debts
     public static List<Transaction> simplifyDebts(List<Transaction> initialDebts) {
         Map<String, Double> balances = new HashMap<>();
         for (Transaction t : initialDebts) {
@@ -100,7 +99,7 @@ public class DebtSimplifier {
         return simplified;
     }
 
-    // Calculates how much each person owes the payer from bill items
+        // calculate item debts
     public static List<Transaction> calculateDebtsFromBill(
             String payer,
             List<String> participants,
@@ -177,7 +176,7 @@ public class DebtSimplifier {
         return debts;
     }
 
-    // Runs a sample demonstration of debt simplification
+        // demo run
     public static void main(String[] args) {
         System.out.println("==================================================");
         System.out.println(" SplitWise AI - Java Debt Simplification Engine ");

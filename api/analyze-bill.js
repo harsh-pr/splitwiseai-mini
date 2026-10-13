@@ -1,4 +1,4 @@
-// Vercel Serverless Function: Receipt OCR Analysis via Google Gemini Vision API
+// analyze bill endpoint
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

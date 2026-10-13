@@ -1,4 +1,3 @@
-// Starts the web server, loads configuration, and sets up all API routes.
 package com.splitwise;
 
 import com.splitwise.ai.GeminiClient;
@@ -21,7 +20,7 @@ import java.util.concurrent.Executors;
 
 public class Main {
 
-    // Starts the HTTP server and registers endpoints
+        // start server
     public static void main(String[] args) {
         System.out.println("================================================================");
         System.out.println("   SplitWise AI - Core Java Server (Zero External Frameworks)   ");
@@ -72,7 +71,7 @@ public class Main {
         }
     }
 
-    // Loads environment variables from the .env file
+        // load env
     private static Map<String, String> loadEnv() {
         Map<String, String> env = new HashMap<>();
         Path envPath = Paths.get(".env");
@@ -99,12 +98,12 @@ public class Main {
     private static class HealthHandler implements HttpHandler {
         private final boolean geminiConfigured;
 
-        // Stores Gemini configuration status for health checks
+                // health handler constructor
         public HealthHandler(boolean geminiConfigured) {
             this.geminiConfigured = geminiConfigured;
         }
 
-        // Returns the server health status as JSON
+                // handle health check
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");

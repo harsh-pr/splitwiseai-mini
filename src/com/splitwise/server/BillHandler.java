@@ -1,4 +1,3 @@
-// Handles creating, reading, updating settlement status, and deleting bills.
 package com.splitwise.server;
 
 import com.splitwise.db.LocalDatabase;
@@ -10,12 +9,12 @@ import java.util.*;
 
 public class BillHandler extends BaseHandler {
 
-    // Initializes bill handler with database reference
+        // init handler
     public BillHandler(LocalDatabase db) {
         super(db);
     }
 
-    // Routes request to handler method based on HTTP verb
+        // handle request
     @Override
     protected void handleRequest(HttpExchange exchange) throws Exception {
         String method = exchange.getRequestMethod();
@@ -33,7 +32,7 @@ public class BillHandler extends BaseHandler {
         }
     }
 
-    // Returns all bills belonging to the logged-in user
+        // get bills
     private void handleGetBills(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
         String userId = user != null ? JsonUtil.getString(user, "id", "") : "";
@@ -47,7 +46,7 @@ public class BillHandler extends BaseHandler {
         sendJson(exchange, 200, res);
     }
 
-    // Creates a new split bill and calculates debt distributions
+        // create bill
     private void handleCreateBill(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
         String userId = user != null ? JsonUtil.getString(user, "id", "") : "guest";
@@ -164,7 +163,7 @@ public class BillHandler extends BaseHandler {
         sendJson(exchange, 201, res);
     }
 
-    // Deletes an existing bill by its ID
+        // delete bill
     private void handleDeleteBill(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
         String userId = user != null ? JsonUtil.getString(user, "id", "") : "";
@@ -188,7 +187,7 @@ public class BillHandler extends BaseHandler {
         }
     }
 
-    // Updates settlement status or UPI ID for a bill
+        // update bill
     private void handleUpdateDebt(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
         String userId = user != null ? JsonUtil.getString(user, "id", "") : "";

@@ -1,30 +1,19 @@
-// SplitWise.AI - Pure Firebase Service
-// Directly connected ONLY to Firebase Authentication and Cloud Firestore.
-// Local database and legacy file/localStorage storage are completely disconnected.
-
 const ApiService = (function () {
-  // Clear any legacy local mock database accounts from browser storage
-  try {
-    localStorage.removeItem('splitwise_local_registered_users');
-    localStorage.removeItem('splitwise_local_bills');
-    localStorage.removeItem('splitwise_active_user');
-    localStorage.removeItem('splitwise_auth_token');
-  } catch (_) {}
-
   let authInstance = null;
   let dbInstance = null;
   let firebaseReady = false;
   let initPromise = null;
 
+  // load firebase config from vercel api
   async function loadConfig() {
-    if (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && !window.FIREBASE_CONFIG.apiKey.includes('YOUR_FIREBASE_API_KEY')) {
+    if (window.FIREBASE_CONFIG?.apiKey && !window.FIREBASE_CONFIG.apiKey.includes('YOUR_')) {
       return window.FIREBASE_CONFIG;
     }
     try {
       const res = await fetch('/api/config');
       if (res.ok) {
         const cfg = await res.json();
-        if (cfg && cfg.apiKey) {
+        if (cfg?.apiKey) {
           window.FIREBASE_CONFIG = cfg;
           return cfg;
         }
@@ -33,6 +22,7 @@ const ApiService = (function () {
     return null;
   }
 
+  // init firebase
   async function initFirebase() {
     if (firebaseReady) return true;
     if (initPromise) return initPromise;
@@ -40,21 +30,20 @@ const ApiService = (function () {
     initPromise = (async () => {
       try {
         let cfg = window.FIREBASE_CONFIG;
-        if (!cfg || !cfg.apiKey || cfg.apiKey.includes('YOUR_FIREBASE_API_KEY')) {
+        if (!cfg?.apiKey || cfg.apiKey.includes('YOUR_')) {
           cfg = await loadConfig();
         }
-        if (typeof firebase !== 'undefined' && cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_FIREBASE_API_KEY')) {
+        if (typeof firebase !== 'undefined' && cfg?.apiKey && !cfg.apiKey.includes('YOUR_')) {
           if (!firebase.apps.length) {
             firebase.initializeApp(cfg);
           }
           authInstance = firebase.auth();
           dbInstance = firebase.firestore();
           firebaseReady = true;
-          console.log('✓ [SplitWise AI] Connected directly to Firebase (Cloud Firestore + Auth)');
           return true;
         }
       } catch (e) {
-        console.error('[SplitWise AI] Firebase connection error:', e);
+        console.error('Firebase init error:', e);
       } finally {
         initPromise = null;
       }
@@ -64,68 +53,53 @@ const ApiService = (function () {
     return initPromise;
   }
 
-  // Attempt initial boot
   initFirebase();
 
+  // check if firebase is ready
   function isFirebaseReady() {
     return firebaseReady;
   }
 
+  // ensure firebase is initialized
   async function ensureFirebase() {
+    if (!firebaseReady) await initFirebase();
     if (!firebaseReady) {
-      await initFirebase();
-    }
-    if (!firebaseReady) {
-      throw new Error('Firebase is not connected. Please verify that your environment variables (FIREBASE_API_KEY, etc.) are set in Vercel.');
+      throw new Error('Firebase not connected. Check environment variables in Vercel.');
     }
   }
 
-  // HTTP helper for Vercel Serverless AI endpoints (Receipt OCR & Split Chat)
+  // api request helper
   async function request(endpoint, options = {}) {
-    const baseUrl = (window.SPLITWISE_CONFIG && window.SPLITWISE_CONFIG.API_BASE_URL) || '/api';
-    const url = `${baseUrl}${endpoint}`;
+    const baseUrl = window.SPLITWISE_CONFIG?.API_BASE_URL || '/api';
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
 
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    };
-
-    if (authInstance && authInstance.currentUser) {
+    if (authInstance?.currentUser) {
       try {
         const token = await authInstance.currentUser.getIdToken();
         if (token) headers['Authorization'] = `Bearer ${token}`;
       } catch (_) {}
     }
 
-    const config = {
-      ...options,
-      headers
-    };
-
     try {
-      const response = await fetch(url, config);
-      const data = await response.json();
-
-      if (!response.ok || data.success === false) {
-        throw new Error(data.error || `HTTP error ${response.status}`);
+      const res = await fetch(`${baseUrl}${endpoint}`, { ...options, headers });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
       }
-
       return data;
     } catch (err) {
-      console.error(`[API Error] ${endpoint}:`, err);
+      console.error(`API Error ${endpoint}:`, err);
       throw err;
     }
   }
 
-  // Greedy Min-Cash-Flow Debt Simplification Algorithm
+  // debt simplifier algorithm
   function runDebtSimplifier(initialDebts) {
-    if (!initialDebts || !initialDebts.length) return [];
-
+    if (!initialDebts?.length) return [];
     const balances = {};
+
     for (const t of initialDebts) {
-      if (!t.from || !t.to || t.from.toLowerCase() === t.to.toLowerCase() || Number(t.amount) <= 0.001) {
-        continue;
-      }
+      if (!t.from || !t.to || t.from.toLowerCase() === t.to.toLowerCase() || Number(t.amount) <= 0.001) continue;
       balances[t.from] = (balances[t.from] || 0) - Number(t.amount);
       balances[t.to] = (balances[t.to] || 0) + Number(t.amount);
     }
@@ -135,35 +109,25 @@ const ApiService = (function () {
 
     for (const [name, rawBal] of Object.entries(balances)) {
       const bal = Math.round(rawBal * 100) / 100;
-      if (bal < -0.01) {
-        debtors.push({ name, netAmount: bal });
-      } else if (bal > 0.01) {
-        creditors.push({ name, netAmount: bal });
-      }
+      if (bal < -0.01) debtors.push({ name, netAmount: bal });
+      else if (bal > 0.01) creditors.push({ name, netAmount: bal });
     }
 
     debtors.sort((a, b) => a.netAmount - b.netAmount);
     creditors.sort((a, b) => b.netAmount - a.netAmount);
 
     const simplified = [];
-
-    while (debtors.length > 0 && creditors.length > 0) {
+    while (debtors.length && creditors.length) {
       const debtor = debtors[0];
       const creditor = creditors[0];
+      let amount = Math.min(-debtor.netAmount, creditor.netAmount);
+      amount = Math.round(amount * 100) / 100;
 
-      let settleAmount = Math.min(-debtor.netAmount, creditor.netAmount);
-      settleAmount = Math.round(settleAmount * 100) / 100;
-
-      if (settleAmount > 0.001) {
-        simplified.push({
-          from: debtor.name,
-          to: creditor.name,
-          amount: settleAmount
-        });
+      if (amount > 0.001) {
+        simplified.push({ from: debtor.name, to: creditor.name, amount });
       }
-
-      debtor.netAmount += settleAmount;
-      creditor.netAmount -= settleAmount;
+      debtor.netAmount += amount;
+      creditor.netAmount -= amount;
 
       if (Math.abs(debtor.netAmount) <= 0.01) debtors.shift();
       if (Math.abs(creditor.netAmount) <= 0.01) creditors.shift();
@@ -175,9 +139,7 @@ const ApiService = (function () {
   return {
     isFirebaseReady,
 
-    // =========================================================================
-    // AUTHENTICATION (100% Firebase Authentication & Firestore)
-    // =========================================================================
+    // auth methods
     auth: {
       async register(name, email, password) {
         await ensureFirebase();
@@ -185,28 +147,18 @@ const ApiService = (function () {
         const cleanEmail = (email || '').trim().toLowerCase();
 
         try {
-          const userCred = await authInstance.createUserWithEmailAndPassword(cleanEmail, password);
-          const fbUser = userCred.user;
-          await fbUser.updateProfile({ displayName: cleanName });
-
-          const userDoc = {
-            uid: fbUser.uid,
+          const cred = await authInstance.createUserWithEmailAndPassword(cleanEmail, password);
+          await cred.user.updateProfile({ displayName: cleanName });
+          await dbInstance.collection('users').doc(cred.user.uid).set({
+            uid: cred.user.uid,
             name: cleanName,
             email: cleanEmail,
             createdAt: Date.now()
-          };
+          }, { merge: true });
 
-          await dbInstance.collection('users').doc(fbUser.uid).set(userDoc, { merge: true });
-
-          return {
-            id: fbUser.uid,
-            uid: fbUser.uid,
-            name: cleanName,
-            email: cleanEmail
-          };
+          return { id: cred.user.uid, uid: cred.user.uid, name: cleanName, email: cleanEmail };
         } catch (err) {
-          console.error('[Firebase Auth Register Error]', err);
-          throw new Error(err.message || 'Firebase Registration failed');
+          throw new Error(err.message || 'Registration failed');
         }
       },
 
@@ -215,51 +167,35 @@ const ApiService = (function () {
         const cleanEmail = (email || '').trim().toLowerCase();
 
         try {
-          const userCred = await authInstance.signInWithEmailAndPassword(cleanEmail, password);
-          const fbUser = userCred.user;
-
-          let displayName = fbUser.displayName;
+          const cred = await authInstance.signInWithEmailAndPassword(cleanEmail, password);
+          let displayName = cred.user.displayName;
           if (!displayName) {
             try {
-              const docSnap = await dbInstance.collection('users').doc(fbUser.uid).get();
-              if (docSnap.exists && docSnap.data().name) {
-                displayName = docSnap.data().name;
-              }
+              const snap = await dbInstance.collection('users').doc(cred.user.uid).get();
+              if (snap.exists && snap.data().name) displayName = snap.data().name;
             } catch (_) {}
           }
-
-          return {
-            id: fbUser.uid,
-            uid: fbUser.uid,
-            name: displayName || cleanEmail.split('@')[0],
-            email: cleanEmail
-          };
+          return { id: cred.user.uid, uid: cred.user.uid, name: displayName || cleanEmail.split('@')[0], email: cleanEmail };
         } catch (err) {
-          console.error('[Firebase Auth Login Error]', err);
-          throw new Error(err.message || 'Invalid Firebase email or password');
+          throw new Error(err.message || 'Invalid email or password');
         }
       },
 
       async getMe() {
-        if (!firebaseReady) {
-          await initFirebase();
-        }
+        if (!firebaseReady) await initFirebase();
         if (!isFirebaseReady()) return null;
 
         return new Promise((resolve) => {
-          const unsubscribe = authInstance.onAuthStateChanged(async (fbUser) => {
-            unsubscribe();
+          const unsub = authInstance.onAuthStateChanged(async (fbUser) => {
+            unsub();
             if (fbUser) {
               let displayName = fbUser.displayName;
               if (!displayName) {
                 try {
-                  const docSnap = await dbInstance.collection('users').doc(fbUser.uid).get();
-                  if (docSnap.exists && docSnap.data().name) {
-                    displayName = docSnap.data().name;
-                  }
+                  const snap = await dbInstance.collection('users').doc(fbUser.uid).get();
+                  if (snap.exists && snap.data().name) displayName = snap.data().name;
                 } catch (_) {}
               }
-
               resolve({
                 id: fbUser.uid,
                 uid: fbUser.uid,
@@ -274,20 +210,15 @@ const ApiService = (function () {
       },
 
       async logout() {
-        if (authInstance) {
-          await authInstance.signOut();
-        }
+        if (authInstance) await authInstance.signOut();
       }
     },
 
-    // =========================================================================
-    // BILLS & SETTLEMENTS (100% Firebase Cloud Firestore)
-    // =========================================================================
+    // bills methods
     bills: {
       async getAll() {
         await ensureFirebase();
         try {
-          // Await auth state if still restoring session
           let currentUser = authInstance.currentUser;
           if (!currentUser) {
             await new Promise((resolve) => {
@@ -305,102 +236,76 @@ const ApiService = (function () {
 
           if (currentUser) {
             const uid = currentUser.uid;
-
-            // 1. Try querying bills where userId == currentUser.uid (satisfies per-user security rules)
             try {
               const userSnap = await dbInstance.collection('bills').where('userId', '==', uid).get();
-              userSnap.forEach(doc => {
-                allDocs.push({ ...doc.data(), id: doc.id });
-              });
+              userSnap.forEach(doc => allDocs.push({ ...doc.data(), id: doc.id }));
             } catch (err) {
               fetchError = err;
             }
 
-            // 2. Also retrieve any guest bills if available
             try {
               const guestSnap = await dbInstance.collection('bills').where('userId', '==', 'guest').get();
               guestSnap.forEach(doc => {
-                if (!allDocs.some(d => d.id === doc.id)) {
-                  allDocs.push({ ...doc.data(), id: doc.id });
-                }
+                if (!allDocs.some(d => d.id === doc.id)) allDocs.push({ ...doc.data(), id: doc.id });
               });
             } catch (_) {}
 
-            // 3. If collection-wide read is allowed, fetch all to catch any email/name matches
             try {
               const fullSnap = await dbInstance.collection('bills').get();
               fullSnap.forEach(doc => {
-                if (!allDocs.some(d => d.id === doc.id)) {
-                  allDocs.push({ ...doc.data(), id: doc.id });
-                }
-              });
-            } catch (fullErr) {
-              // If full query failed and user query also failed, propagate error
-              if (allDocs.length === 0 && fetchError) {
-                throw fetchError;
-              }
-            }
-          } else {
-            // Unauthenticated (guest)
-            try {
-              const fullSnap = await dbInstance.collection('bills').get();
-              fullSnap.forEach(doc => {
-                allDocs.push({ ...doc.data(), id: doc.id });
+                if (!allDocs.some(d => d.id === doc.id)) allDocs.push({ ...doc.data(), id: doc.id });
               });
             } catch (_) {
+              if (!allDocs.length && fetchError) throw fetchError;
+            }
+          } else {
+            try {
+              const fullSnap = await dbInstance.collection('bills').get();
+              fullSnap.forEach(doc => allDocs.push({ ...doc.data(), id: doc.id }));
+            } catch (_) {
               const guestSnap = await dbInstance.collection('bills').where('userId', '==', 'guest').get();
-              guestSnap.forEach(doc => {
-                allDocs.push({ ...doc.data(), id: doc.id });
-              });
+              guestSnap.forEach(doc => allDocs.push({ ...doc.data(), id: doc.id }));
             }
           }
 
-          // Sort by date descending
           allDocs.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
 
           if (currentUser) {
             const uid = currentUser.uid;
-            const userEmail = (currentUser.email || '').toLowerCase().trim();
-            const userName = (currentUser.displayName || '').toLowerCase().trim();
+            const email = (currentUser.email || '').toLowerCase().trim();
+            const name = (currentUser.displayName || '').toLowerCase().trim();
 
             const filtered = allDocs.filter(b => {
-              if (b.userId === uid) return true;
-              if (b.userId === 'guest' || !b.userId) return true;
-              if (userEmail && b.userEmail && b.userEmail.toLowerCase().trim() === userEmail) return true;
-              if (userName && b.payer && b.payer.toLowerCase().trim() === userName) return true;
+              if (b.userId === uid || b.userId === 'guest' || !b.userId) return true;
+              if (email && b.userEmail?.toLowerCase().trim() === email) return true;
+              if (name && b.payer?.toLowerCase().trim() === name) return true;
               return false;
             });
-
-            return filtered.length > 0 ? filtered : allDocs;
+            return filtered.length ? filtered : allDocs;
           }
 
           return allDocs;
         } catch (err) {
-          console.error('[Firebase Firestore getAll Bills Error]', err);
-          throw new Error('Failed to load bills from Firebase: ' + err.message);
+          console.error('getAll bills error:', err);
+          throw new Error('Failed to load bills: ' + err.message);
         }
       },
 
       async create(billData) {
         await ensureFirebase();
-        const currentUser = (authInstance && authInstance.currentUser) || null;
-        const userId = currentUser ? currentUser.uid : 'guest';
-        const userEmail = currentUser ? currentUser.email : '';
-
+        const currentUser = authInstance?.currentUser || null;
         const cleanDebts = (billData.debts || []).map(d => ({
           ...d,
           amount: Math.round(Number(d.amount || 0) * 100) / 100,
           settled: Boolean(d.settled)
         }));
 
-        const isAllSettled = cleanDebts.length > 0 && cleanDebts.every(d => d.settled === true);
-
         const newBill = {
           ...billData,
-          userId,
-          userEmail,
+          userId: currentUser ? currentUser.uid : 'guest',
+          userEmail: currentUser?.email || '',
           debts: cleanDebts,
-          settled: isAllSettled,
+          settled: cleanDebts.length > 0 && cleanDebts.every(d => d.settled),
           createdAt: Date.now()
         };
 
@@ -408,21 +313,18 @@ const ApiService = (function () {
           const docRef = await dbInstance.collection('bills').add(newBill);
           return { ...newBill, id: docRef.id };
         } catch (err) {
-          console.error('[Firebase Firestore create Bill Error]', err);
-          throw new Error('Failed to save bill to Firebase: ' + err.message);
+          throw new Error('Failed to save bill: ' + err.message);
         }
       },
 
       async delete(billId) {
         if (!billId) return { success: false };
         await ensureFirebase();
-
         try {
           await dbInstance.collection('bills').doc(billId).delete();
           return { success: true };
         } catch (err) {
-          console.error('[Firebase Firestore delete Bill Error]', err);
-          throw new Error('Failed to delete bill from Firebase: ' + err.message);
+          throw new Error('Failed to delete bill: ' + err.message);
         }
       },
 
@@ -433,54 +335,44 @@ const ApiService = (function () {
         try {
           const docRef = dbInstance.collection('bills').doc(billId);
           const snap = await docRef.get();
-          if (!snap.exists) throw new Error('Bill not found in Firebase database');
+          if (!snap.exists) throw new Error('Bill not found');
 
           const data = snap.data();
+          const targetFrom = (personFrom || '').trim().toLowerCase();
           const debts = (data.debts || []).map(d => {
             const fromName = (d.from || '').trim().toLowerCase();
-            const targetFrom = (personFrom || '').trim().toLowerCase();
             if (targetFrom === 'all' || !targetFrom || fromName === targetFrom) {
               return { ...d, settled: Boolean(settled) };
             }
             return d;
           });
 
-          const allSettled = debts.length > 0 && debts.every(d => d.settled === true);
           const updatePayload = {
             debts,
-            settled: allSettled
+            settled: debts.length > 0 && debts.every(d => d.settled)
           };
-
-          if (upiId && upiId.trim()) {
-            updatePayload.upiId = upiId.trim();
-          }
+          if (upiId?.trim()) updatePayload.upiId = upiId.trim();
 
           await docRef.update(updatePayload);
           return { success: true };
         } catch (err) {
-          console.error('[Firebase Firestore updateDebtStatus Error]', err);
-          throw new Error('Failed to update debt status in Firebase: ' + err.message);
+          throw new Error('Failed to update debt: ' + err.message);
         }
       },
 
       async updateBillUpi(billId, upiId) {
         if (!billId || !upiId) return { success: false };
         await ensureFirebase();
-        const cleanUpi = upiId.trim();
-
         try {
-          await dbInstance.collection('bills').doc(billId).update({ upiId: cleanUpi });
+          await dbInstance.collection('bills').doc(billId).update({ upiId: upiId.trim() });
           return { success: true };
         } catch (err) {
-          console.error('[Firebase Firestore updateBillUpi Error]', err);
-          throw new Error('Failed to update UPI ID in Firebase: ' + err.message);
+          throw new Error('Failed to update UPI ID: ' + err.message);
         }
       }
     },
 
-    // =========================================================================
-    // AI SERVICES (Vercel Serverless Gemini Endpoints)
-    // =========================================================================
+    // ai endpoints
     ai: {
       async analyzeReceipt(imageBase64, mimeType = 'image/jpeg', category = 'restaurant') {
         const res = await request('/analyze-bill', {
@@ -498,9 +390,7 @@ const ApiService = (function () {
       }
     },
 
-    // =========================================================================
-    // DEBT SIMPLIFICATION DSA
-    // =========================================================================
+    // debt simplification
     debts: {
       async simplify(debts = null) {
         return {

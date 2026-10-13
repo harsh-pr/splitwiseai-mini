@@ -1,4 +1,3 @@
-// Handles user authentication endpoints including registration, login, profile, and logout.
 package com.splitwise.server;
 
 import com.splitwise.db.LocalDatabase;
@@ -10,12 +9,12 @@ import java.util.Map;
 
 public class AuthHandler extends BaseHandler {
 
-    // Initializes authentication handler with database reference
+        // init handler
     public AuthHandler(LocalDatabase db) {
         super(db);
     }
 
-    // Routes authentication requests to appropriate sub-handlers based on path
+        // handle auth routes
     @Override
     protected void handleRequest(HttpExchange exchange) throws Exception {
         String path = exchange.getRequestURI().getPath();
@@ -50,7 +49,7 @@ public class AuthHandler extends BaseHandler {
         }
     }
 
-    // Creates a new user account and returns an auth session token
+        // register
     private void handleRegister(HttpExchange exchange) throws Exception {
         String body = readRequestBody(exchange);
         Map<String, Object> req = JsonUtil.parseObject(body);
@@ -86,7 +85,7 @@ public class AuthHandler extends BaseHandler {
         sendJson(exchange, 201, res);
     }
 
-    // Authenticates email and password credentials and creates a session
+        // login
     private void handleLogin(HttpExchange exchange) throws Exception {
         String body = readRequestBody(exchange);
         Map<String, Object> req = JsonUtil.parseObject(body);
@@ -116,7 +115,7 @@ public class AuthHandler extends BaseHandler {
         sendJson(exchange, 200, res);
     }
 
-    // Returns the profile of the currently logged-in user
+        // get me
     private void handleMe(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
         if (user == null) {
@@ -131,7 +130,7 @@ public class AuthHandler extends BaseHandler {
         sendJson(exchange, 200, res);
     }
 
-    // Terminates current user session
+        // logout
     private void handleLogout(HttpExchange exchange) throws Exception {
         String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {

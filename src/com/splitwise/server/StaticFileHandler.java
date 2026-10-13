@@ -1,4 +1,3 @@
-// Serves static frontend files such as HTML, CSS, JavaScript, and images.
 package com.splitwise.server;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -15,12 +14,12 @@ public class StaticFileHandler implements HttpHandler {
 
     private final Path webRoot;
 
-    // Sets the root folder path for serving static files
+        // init handler
     public StaticFileHandler(String webDir) {
         this.webRoot = Paths.get(webDir).toAbsolutePath().normalize();
     }
 
-    // Serves the requested file or falls back to index.html
+        // handle request
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         String method = exchange.getRequestMethod();
@@ -67,7 +66,7 @@ public class StaticFileHandler implements HttpHandler {
         }
     }
 
-    // Determines the Content-Type header based on file extension
+        // get mime type
     private String getMimeType(String filename) {
         String lower = filename.toLowerCase();
         if (lower.endsWith(".html")) return "text/html; charset=UTF-8";

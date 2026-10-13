@@ -1,4 +1,3 @@
-// Handles receipt image and document OCR analysis using the Gemini AI service.
 package com.splitwise.server;
 
 import com.splitwise.ai.GeminiClient;
@@ -13,13 +12,13 @@ public class AnalyzeBillHandler extends BaseHandler {
 
     private final GeminiClient geminiClient;
 
-    // Initializes handler with database and Gemini client
+        // init handler
     public AnalyzeBillHandler(LocalDatabase db, GeminiClient geminiClient) {
         super(db);
         this.geminiClient = geminiClient;
     }
 
-    // Parses uploaded image data and returns extracted bill items as JSON
+        // handle request
     @Override
     protected void handleRequest(HttpExchange exchange) throws Exception {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {

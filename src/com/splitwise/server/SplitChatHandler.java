@@ -1,4 +1,3 @@
-// Handles conversational AI split chat requests to update items and participants.
 package com.splitwise.server;
 
 import com.splitwise.ai.GeminiClient;
@@ -12,13 +11,13 @@ public class SplitChatHandler extends BaseHandler {
 
     private final GeminiClient geminiClient;
 
-    // Initializes chat handler with database and Gemini client
+        // init handler
     public SplitChatHandler(LocalDatabase db, GeminiClient geminiClient) {
         super(db);
         this.geminiClient = geminiClient;
     }
 
-    // Processes chat prompt and returns updated items and assignments
+        // handle request
     @Override
     protected void handleRequest(HttpExchange exchange) throws Exception {
         if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
