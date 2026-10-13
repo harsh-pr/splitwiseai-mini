@@ -1,14 +1,16 @@
-// SplitWise.AI - Unified API & Firebase Firestore Service
-// Seamlessly connects frontend to Firebase Authentication & Cloud Firestore database,
-// with automatic local fallback mode when offline or before Firebase credentials are configured.
+// SplitWise.AI - Pure Firebase Service
+// Directly connected ONLY to Firebase Authentication and Cloud Firestore.
+// Local database and legacy file/localStorage storage are completely disconnected.
 
 const ApiService = (function () {
-  const TOKEN_KEY = 'splitwise_auth_token';
-  const LOCAL_USER_KEY = 'splitwise_active_user';
-  const LOCAL_BILLS_KEY = 'splitwise_local_bills';
-  const LOCAL_USERS_DB_KEY = 'splitwise_local_registered_users';
+  // Clear any legacy local mock database accounts from browser storage
+  try {
+    localStorage.removeItem('splitwise_local_registered_users');
+    localStorage.removeItem('splitwise_local_bills');
+    localStorage.removeItem('splitwise_active_user');
+    localStorage.removeItem('splitwise_auth_token');
+  } catch (_) {}
 
-  // --- Firebase Initialization ---
   let authInstance = null;
   let dbInstance = null;
   let firebaseReady = false;
@@ -17,84 +19,36 @@ const ApiService = (function () {
     if (firebaseReady) return true;
     try {
       const cfg = window.FIREBASE_CONFIG;
-      if (typeof firebase !== 'undefined' && cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_API_KEY')) {
+      if (typeof firebase !== 'undefined' && cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_FIREBASE_API_KEY')) {
         if (!firebase.apps.length) {
           firebase.initializeApp(cfg);
         }
         authInstance = firebase.auth();
         dbInstance = firebase.firestore();
         firebaseReady = true;
-        console.log('✓ [SplitWise AI] Firebase initialized (Cloud Firestore + Auth connected)');
+        console.log('✓ [SplitWise AI] Connected directly to Firebase (Cloud Firestore + Auth)');
         return true;
       }
     } catch (e) {
-      console.warn('[SplitWise AI] Firebase initialization warning:', e.message);
+      console.error('[SplitWise AI] Firebase connection error:', e);
     }
     return false;
   }
 
-  // Attempt initial Firebase boot
+  // Initialize immediately
   initFirebase();
 
   function isFirebaseReady() {
     return firebaseReady || initFirebase();
   }
 
-  // --- Local Fallback Database Helpers ---
-  function getLocalBills() {
-    try {
-      const data = localStorage.getItem(LOCAL_BILLS_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch {
-      return [];
+  function ensureFirebase() {
+    if (!isFirebaseReady()) {
+      throw new Error('Firebase is not connected. Please check your internet connection and Firebase project configuration.');
     }
   }
 
-  function saveLocalBills(bills) {
-    try {
-      localStorage.setItem(LOCAL_BILLS_KEY, JSON.stringify(bills));
-    } catch (e) {
-      console.error('Error saving local bills:', e);
-    }
-  }
-
-  function getLocalUsers() {
-    try {
-      const data = localStorage.getItem(LOCAL_USERS_DB_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function saveLocalUsers(users) {
-    try {
-      localStorage.setItem(LOCAL_USERS_DB_KEY, JSON.stringify(users));
-    } catch (e) {
-      console.error('Error saving local users:', e);
-    }
-  }
-
-  function getStoredActiveUser() {
-    try {
-      const data = localStorage.getItem(LOCAL_USER_KEY);
-      return data ? JSON.parse(data) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function setStoredActiveUser(user) {
-    if (user) {
-      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(user));
-      localStorage.setItem(TOKEN_KEY, user.id || user.uid || 'session_' + Date.now());
-    } else {
-      localStorage.removeItem(LOCAL_USER_KEY);
-      localStorage.removeItem(TOKEN_KEY);
-    }
-  }
-
-  // --- HTTP Request Helper (for Vercel Serverless / Backend AI APIs) ---
+  // HTTP helper for Vercel Serverless AI endpoints (Receipt OCR & Split Chat)
   async function request(endpoint, options = {}) {
     const baseUrl = (window.SPLITWISE_CONFIG && window.SPLITWISE_CONFIG.API_BASE_URL) || '/api';
     const url = `${baseUrl}${endpoint}`;
@@ -104,9 +58,11 @@ const ApiService = (function () {
       ...(options.headers || {})
     };
 
-    const token = localStorage.getItem(TOKEN_KEY) || '';
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    if (authInstance && authInstance.currentUser) {
+      try {
+        const token = await authInstance.currentUser.getIdToken();
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      } catch (_) {}
     }
 
     const config = {
@@ -129,7 +85,7 @@ const ApiService = (function () {
     }
   }
 
-  // --- Debt Simplification Algorithm (Greedy Min Cash Flow with Net Balances) ---
+  // Greedy Min-Cash-Flow Debt Simplification Algorithm
   function runDebtSimplifier(initialDebts) {
     if (!initialDebts || !initialDebts.length) return [];
 
@@ -154,8 +110,8 @@ const ApiService = (function () {
       }
     }
 
-    debtors.sort((a, b) => a.netAmount - b.netAmount); // Most negative balance first
-    creditors.sort((a, b) => b.netAmount - a.netAmount); // Most positive credit first
+    debtors.sort((a, b) => a.netAmount - b.netAmount);
+    creditors.sort((a, b) => b.netAmount - a.netAmount);
 
     const simplified = [];
 
@@ -187,218 +143,149 @@ const ApiService = (function () {
   return {
     isFirebaseReady,
 
-    getToken() {
-      return localStorage.getItem(TOKEN_KEY) || '';
-    },
-
-    setToken(token) {
-      if (token) {
-        localStorage.setItem(TOKEN_KEY, token);
-      } else {
-        localStorage.removeItem(TOKEN_KEY);
-      }
-    },
-
     // =========================================================================
-    // AUTHENTICATION (Firebase Auth + Firestore Profile, with local fallback)
+    // AUTHENTICATION (100% Firebase Authentication & Firestore)
     // =========================================================================
     auth: {
       async register(name, email, password) {
+        ensureFirebase();
         const cleanName = (name || 'User').trim();
         const cleanEmail = (email || '').trim().toLowerCase();
 
-        if (isFirebaseReady()) {
-          try {
-            const userCred = await authInstance.createUserWithEmailAndPassword(cleanEmail, password);
-            const fbUser = userCred.user;
-            await fbUser.updateProfile({ displayName: cleanName });
+        try {
+          const userCred = await authInstance.createUserWithEmailAndPassword(cleanEmail, password);
+          const fbUser = userCred.user;
+          await fbUser.updateProfile({ displayName: cleanName });
 
-            const userDoc = {
-              uid: fbUser.uid,
-              name: cleanName,
-              email: cleanEmail,
-              createdAt: Date.now()
-            };
+          const userDoc = {
+            uid: fbUser.uid,
+            name: cleanName,
+            email: cleanEmail,
+            createdAt: Date.now()
+          };
 
-            await dbInstance.collection('users').doc(fbUser.uid).set(userDoc, { merge: true });
+          await dbInstance.collection('users').doc(fbUser.uid).set(userDoc, { merge: true });
 
-            const userObj = {
-              id: fbUser.uid,
-              uid: fbUser.uid,
-              name: cleanName,
-              email: cleanEmail
-            };
-
-            setStoredActiveUser(userObj);
-            return userObj;
-          } catch (err) {
-            console.error('[Firebase Auth Register Error]', err);
-            throw new Error(err.message || 'Registration failed');
-          }
+          return {
+            id: fbUser.uid,
+            uid: fbUser.uid,
+            name: cleanName,
+            email: cleanEmail
+          };
+        } catch (err) {
+          console.error('[Firebase Auth Register Error]', err);
+          throw new Error(err.message || 'Firebase Registration failed');
         }
-
-        // Local Fallback
-        const users = getLocalUsers();
-        if (users.some(u => u.email === cleanEmail)) {
-          throw new Error('An account with this email already exists.');
-        }
-
-        const newUser = {
-          id: 'user_' + Date.now(),
-          uid: 'user_' + Date.now(),
-          name: cleanName,
-          email: cleanEmail,
-          password: password,
-          createdAt: Date.now()
-        };
-
-        users.push(newUser);
-        saveLocalUsers(users);
-
-        const safeUser = { id: newUser.id, uid: newUser.uid, name: newUser.name, email: newUser.email };
-        setStoredActiveUser(safeUser);
-        return safeUser;
       },
 
       async login(email, password) {
+        ensureFirebase();
         const cleanEmail = (email || '').trim().toLowerCase();
 
-        if (isFirebaseReady()) {
-          try {
-            const userCred = await authInstance.signInWithEmailAndPassword(cleanEmail, password);
-            const fbUser = userCred.user;
+        try {
+          const userCred = await authInstance.signInWithEmailAndPassword(cleanEmail, password);
+          const fbUser = userCred.user;
 
-            let displayName = fbUser.displayName;
-            if (!displayName) {
-              try {
-                const docSnap = await dbInstance.collection('users').doc(fbUser.uid).get();
-                if (docSnap.exists && docSnap.data().name) {
-                  displayName = docSnap.data().name;
-                }
-              } catch (_) {}
-            }
-
-            const userObj = {
-              id: fbUser.uid,
-              uid: fbUser.uid,
-              name: displayName || cleanEmail.split('@')[0],
-              email: cleanEmail
-            };
-
-            setStoredActiveUser(userObj);
-            return userObj;
-          } catch (err) {
-            console.error('[Firebase Auth Login Error]', err);
-            throw new Error(err.message || 'Invalid email or password');
+          let displayName = fbUser.displayName;
+          if (!displayName) {
+            try {
+              const docSnap = await dbInstance.collection('users').doc(fbUser.uid).get();
+              if (docSnap.exists && docSnap.data().name) {
+                displayName = docSnap.data().name;
+              }
+            } catch (_) {}
           }
-        }
 
-        // Local Fallback
-        const users = getLocalUsers();
-        const found = users.find(u => u.email === cleanEmail && u.password === password);
-        if (!found) {
-          throw new Error('Invalid email or password.');
+          return {
+            id: fbUser.uid,
+            uid: fbUser.uid,
+            name: displayName || cleanEmail.split('@')[0],
+            email: cleanEmail
+          };
+        } catch (err) {
+          console.error('[Firebase Auth Login Error]', err);
+          throw new Error(err.message || 'Invalid Firebase email or password');
         }
-
-        const safeUser = { id: found.id, uid: found.uid, name: found.name, email: found.email };
-        setStoredActiveUser(safeUser);
-        return safeUser;
       },
 
       async getMe() {
-        if (isFirebaseReady()) {
-          return new Promise((resolve) => {
-            const unsubscribe = authInstance.onAuthStateChanged(async (fbUser) => {
-              unsubscribe();
-              if (fbUser) {
-                let displayName = fbUser.displayName;
-                if (!displayName) {
-                  try {
-                    const docSnap = await dbInstance.collection('users').doc(fbUser.uid).get();
-                    if (docSnap.exists && docSnap.data().name) {
-                      displayName = docSnap.data().name;
-                    }
-                  } catch (_) {}
-                }
+        if (!isFirebaseReady()) return null;
 
-                const userObj = {
-                  id: fbUser.uid,
-                  uid: fbUser.uid,
-                  name: displayName || fbUser.email.split('@')[0],
-                  email: fbUser.email
-                };
-                setStoredActiveUser(userObj);
-                resolve(userObj);
-              } else {
-                resolve(null);
+        return new Promise((resolve) => {
+          const unsubscribe = authInstance.onAuthStateChanged(async (fbUser) => {
+            unsubscribe();
+            if (fbUser) {
+              let displayName = fbUser.displayName;
+              if (!displayName) {
+                try {
+                  const docSnap = await dbInstance.collection('users').doc(fbUser.uid).get();
+                  if (docSnap.exists && docSnap.data().name) {
+                    displayName = docSnap.data().name;
+                  }
+                } catch (_) {}
               }
-            });
-          });
-        }
 
-        return getStoredActiveUser();
+              resolve({
+                id: fbUser.uid,
+                uid: fbUser.uid,
+                name: displayName || fbUser.email.split('@')[0],
+                email: fbUser.email
+              });
+            } else {
+              resolve(null);
+            }
+          });
+        });
       },
 
       async logout() {
-        if (isFirebaseReady()) {
-          try {
-            await authInstance.signOut();
-          } catch (e) {
-            console.warn('Firebase signOut error:', e);
-          }
+        if (authInstance) {
+          await authInstance.signOut();
         }
-        setStoredActiveUser(null);
       }
     },
 
     // =========================================================================
-    // BILLS & DEBTS DATABASE (Firebase Cloud Firestore + Local Fallback)
+    // BILLS & SETTLEMENTS (100% Firebase Cloud Firestore)
     // =========================================================================
     bills: {
       async getAll() {
-        if (isFirebaseReady()) {
-          try {
-            const currentUser = authInstance.currentUser;
-            const uid = currentUser ? currentUser.uid : null;
+        ensureFirebase();
+        try {
+          const currentUser = authInstance.currentUser;
+          const uid = currentUser ? currentUser.uid : null;
 
-            let query = dbInstance.collection('bills');
-            if (uid) {
-              query = query.where('userId', '==', uid);
-            } else {
-              query = query.where('userId', '==', 'guest');
-            }
-
-            const snapshot = await query.get();
-            const bills = [];
-            snapshot.forEach(doc => {
-              const data = doc.data();
-              bills.push({
-                ...data,
-                id: doc.id
-              });
-            });
-
-            // In-memory sort by date descending (avoids requiring manual Firestore composite indexes)
-            bills.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
-            return bills;
-          } catch (err) {
-            console.error('[Firebase Firestore getAll Bills Error]', err);
-            // Fallback to local on connection glitch
-            return getLocalBills();
+          let query = dbInstance.collection('bills');
+          if (uid) {
+            query = query.where('userId', '==', uid);
+          } else {
+            query = query.where('userId', '==', 'guest');
           }
-        }
 
-        // Local Storage Fallback
-        const bills = getLocalBills();
-        bills.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
-        return bills;
+          const snapshot = await query.get();
+          const bills = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            bills.push({
+              ...data,
+              id: doc.id
+            });
+          });
+
+          // Sort by creation date descending
+          bills.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+          return bills;
+        } catch (err) {
+          console.error('[Firebase Firestore getAll Bills Error]', err);
+          throw new Error('Failed to load bills from Firebase: ' + err.message);
+        }
       },
 
       async create(billData) {
+        ensureFirebase();
         const currentUser = (authInstance && authInstance.currentUser) || null;
-        const activeLocal = getStoredActiveUser();
-        const userId = currentUser ? currentUser.uid : (activeLocal ? activeLocal.id : 'guest');
-        const userEmail = currentUser ? currentUser.email : (activeLocal ? activeLocal.email : '');
+        const userId = currentUser ? currentUser.uid : 'guest';
+        const userEmail = currentUser ? currentUser.email : '';
 
         const cleanDebts = (billData.debts || []).map(d => ({
           ...d,
@@ -417,130 +304,82 @@ const ApiService = (function () {
           createdAt: Date.now()
         };
 
-        if (isFirebaseReady()) {
-          try {
-            const docRef = await dbInstance.collection('bills').add(newBill);
-            const savedBill = { ...newBill, id: docRef.id };
-            return savedBill;
-          } catch (err) {
-            console.error('[Firebase Firestore create Bill Error]', err);
-            throw err;
-          }
+        try {
+          const docRef = await dbInstance.collection('bills').add(newBill);
+          return { ...newBill, id: docRef.id };
+        } catch (err) {
+          console.error('[Firebase Firestore create Bill Error]', err);
+          throw new Error('Failed to save bill to Firebase: ' + err.message);
         }
-
-        // Local Storage Fallback
-        const bills = getLocalBills();
-        const localId = 'bill_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-        const savedBill = { ...newBill, id: localId };
-        bills.unshift(savedBill);
-        saveLocalBills(bills);
-        return savedBill;
       },
 
       async delete(billId) {
         if (!billId) return { success: false };
+        ensureFirebase();
 
-        if (isFirebaseReady()) {
-          try {
-            await dbInstance.collection('bills').doc(billId).delete();
-            return { success: true };
-          } catch (err) {
-            console.error('[Firebase Firestore delete Bill Error]', err);
-            throw err;
-          }
+        try {
+          await dbInstance.collection('bills').doc(billId).delete();
+          return { success: true };
+        } catch (err) {
+          console.error('[Firebase Firestore delete Bill Error]', err);
+          throw new Error('Failed to delete bill from Firebase: ' + err.message);
         }
-
-        // Local Storage Fallback
-        let bills = getLocalBills();
-        bills = bills.filter(b => b.id !== billId);
-        saveLocalBills(bills);
-        return { success: true };
       },
 
       async updateDebtStatus(billId, personFrom = 'all', settled = true, upiId = '') {
         if (!billId) return { success: false };
+        ensureFirebase();
 
-        if (isFirebaseReady()) {
-          try {
-            const docRef = dbInstance.collection('bills').doc(billId);
-            const snap = await docRef.get();
-            if (!snap.exists) throw new Error('Bill not found in database');
+        try {
+          const docRef = dbInstance.collection('bills').doc(billId);
+          const snap = await docRef.get();
+          if (!snap.exists) throw new Error('Bill not found in Firebase database');
 
-            const data = snap.data();
-            const debts = (data.debts || []).map(d => {
-              const fromName = (d.from || '').trim().toLowerCase();
-              const targetFrom = (personFrom || '').trim().toLowerCase();
-              if (targetFrom === 'all' || !targetFrom || fromName === targetFrom) {
-                return { ...d, settled: Boolean(settled) };
-              }
-              return d;
-            });
-
-            const allSettled = debts.length > 0 && debts.every(d => d.settled === true);
-            const updatePayload = {
-              debts,
-              settled: allSettled
-            };
-
-            if (upiId && upiId.trim()) {
-              updatePayload.upiId = upiId.trim();
-            }
-
-            await docRef.update(updatePayload);
-            return { success: true };
-          } catch (err) {
-            console.error('[Firebase Firestore updateDebtStatus Error]', err);
-            throw err;
-          }
-        }
-
-        // Local Storage Fallback
-        const bills = getLocalBills();
-        const bill = bills.find(b => b.id === billId);
-        if (bill) {
-          (bill.debts || []).forEach(d => {
+          const data = snap.data();
+          const debts = (data.debts || []).map(d => {
             const fromName = (d.from || '').trim().toLowerCase();
             const targetFrom = (personFrom || '').trim().toLowerCase();
             if (targetFrom === 'all' || !targetFrom || fromName === targetFrom) {
-              d.settled = Boolean(settled);
+              return { ...d, settled: Boolean(settled) };
             }
+            return d;
           });
-          bill.settled = (bill.debts || []).length > 0 && bill.debts.every(d => d.settled === true);
+
+          const allSettled = debts.length > 0 && debts.every(d => d.settled === true);
+          const updatePayload = {
+            debts,
+            settled: allSettled
+          };
+
           if (upiId && upiId.trim()) {
-            bill.upiId = upiId.trim();
+            updatePayload.upiId = upiId.trim();
           }
-          saveLocalBills(bills);
+
+          await docRef.update(updatePayload);
+          return { success: true };
+        } catch (err) {
+          console.error('[Firebase Firestore updateDebtStatus Error]', err);
+          throw new Error('Failed to update debt status in Firebase: ' + err.message);
         }
-        return { success: true };
       },
 
       async updateBillUpi(billId, upiId) {
         if (!billId || !upiId) return { success: false };
+        ensureFirebase();
         const cleanUpi = upiId.trim();
 
-        if (isFirebaseReady()) {
-          try {
-            await dbInstance.collection('bills').doc(billId).update({ upiId: cleanUpi });
-            return { success: true };
-          } catch (err) {
-            console.error('[Firebase Firestore updateBillUpi Error]', err);
-            throw err;
-          }
+        try {
+          await dbInstance.collection('bills').doc(billId).update({ upiId: cleanUpi });
+          return { success: true };
+        } catch (err) {
+          console.error('[Firebase Firestore updateBillUpi Error]', err);
+          throw new Error('Failed to update UPI ID in Firebase: ' + err.message);
         }
-
-        // Local Storage Fallback
-        const bills = getLocalBills();
-        const bill = bills.find(b => b.id === billId);
-        if (bill) {
-          bill.upiId = cleanUpi;
-          saveLocalBills(bills);
-        }
-        return { success: true };
       }
     },
 
     // =========================================================================
-    // AI SERVICES (Gemini OCR Receipt Analysis & Live Split Chat)
+    // AI SERVICES (Vercel Serverless Gemini Endpoints)
     // =========================================================================
     ai: {
       async analyzeReceipt(imageBase64, mimeType = 'image/jpeg', category = 'restaurant') {
@@ -560,35 +399,21 @@ const ApiService = (function () {
     },
 
     // =========================================================================
-    // DEBT SIMPLIFICATION DSA ENGINE
+    // DEBT SIMPLIFICATION DSA
     // =========================================================================
     debts: {
       async simplify(debts = null) {
-        if (debts && Array.isArray(debts)) {
-          return {
-            success: true,
-            transactions: runDebtSimplifier(debts)
-          };
-        }
-        try {
-          return await request('/simplify-debts', {
-            method: 'POST',
-            body: JSON.stringify({ debts })
-          });
-        } catch {
-          return { success: true, transactions: runDebtSimplifier(debts || []) };
-        }
+        return {
+          success: true,
+          transactions: runDebtSimplifier(debts || [])
+        };
       },
 
       async settle(from, to, amount) {
-        try {
-          return await request('/settle', {
-            method: 'POST',
-            body: JSON.stringify({ from, to, amount })
-          });
-        } catch {
-          return { success: true, message: `Settled ₹${amount} from ${from} to ${to}` };
-        }
+        return {
+          success: true,
+          message: `Settled ₹${amount} from ${from} to ${to}`
+        };
       }
     }
   };

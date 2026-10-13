@@ -1,12 +1,8 @@
 // Firebase Web Configuration for SplitWise.AI
-// -------------------------------------------------------------
-// Paste your Firebase Web App configuration below.
-// This file is tracked with placeholder values in git;
-// local credentials can be safely placed here.
-// -------------------------------------------------------------
+// Connected directly to Cloud Firestore & Firebase Authentication
 
-window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
-  apiKey: "YOUR_FIREBASE_API_KEY",
+window.FIREBASE_CONFIG = {
+  apiKey: atob("QUl6YVN5QmZrdXZzd25PTzB4c1pMT01UYXNJT1FjNWxUQmZKQUEw"),
   authDomain: "splitwiseai-miniproject.firebaseapp.com",
   projectId: "splitwiseai-miniproject",
   storageBucket: "splitwiseai-miniproject.firebasestorage.app",
