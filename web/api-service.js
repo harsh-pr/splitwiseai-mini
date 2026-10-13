@@ -14,37 +14,69 @@ const ApiService = (function () {
   let authInstance = null;
   let dbInstance = null;
   let firebaseReady = false;
+  let initPromise = null;
 
-  function initFirebase() {
-    if (firebaseReady) return true;
-    try {
-      const cfg = window.FIREBASE_CONFIG;
-      if (typeof firebase !== 'undefined' && cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_FIREBASE_API_KEY')) {
-        if (!firebase.apps.length) {
-          firebase.initializeApp(cfg);
-        }
-        authInstance = firebase.auth();
-        dbInstance = firebase.firestore();
-        firebaseReady = true;
-        console.log('✓ [SplitWise AI] Connected directly to Firebase (Cloud Firestore + Auth)');
-        return true;
-      }
-    } catch (e) {
-      console.error('[SplitWise AI] Firebase connection error:', e);
+  async function loadConfig() {
+    if (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && !window.FIREBASE_CONFIG.apiKey.includes('YOUR_FIREBASE_API_KEY')) {
+      return window.FIREBASE_CONFIG;
     }
-    return false;
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const cfg = await res.json();
+        if (cfg && cfg.apiKey) {
+          window.FIREBASE_CONFIG = cfg;
+          return cfg;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
-  // Initialize immediately
+  async function initFirebase() {
+    if (firebaseReady) return true;
+    if (initPromise) return initPromise;
+
+    initPromise = (async () => {
+      try {
+        let cfg = window.FIREBASE_CONFIG;
+        if (!cfg || !cfg.apiKey || cfg.apiKey.includes('YOUR_FIREBASE_API_KEY')) {
+          cfg = await loadConfig();
+        }
+        if (typeof firebase !== 'undefined' && cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_FIREBASE_API_KEY')) {
+          if (!firebase.apps.length) {
+            firebase.initializeApp(cfg);
+          }
+          authInstance = firebase.auth();
+          dbInstance = firebase.firestore();
+          firebaseReady = true;
+          console.log('✓ [SplitWise AI] Connected directly to Firebase (Cloud Firestore + Auth)');
+          return true;
+        }
+      } catch (e) {
+        console.error('[SplitWise AI] Firebase connection error:', e);
+      } finally {
+        initPromise = null;
+      }
+      return false;
+    })();
+
+    return initPromise;
+  }
+
+  // Attempt initial boot
   initFirebase();
 
   function isFirebaseReady() {
-    return firebaseReady || initFirebase();
+    return firebaseReady;
   }
 
-  function ensureFirebase() {
-    if (!isFirebaseReady()) {
-      throw new Error('Firebase is not connected. Please check your internet connection and Firebase project configuration.');
+  async function ensureFirebase() {
+    if (!firebaseReady) {
+      await initFirebase();
+    }
+    if (!firebaseReady) {
+      throw new Error('Firebase is not connected. Please verify that your environment variables (FIREBASE_API_KEY, etc.) are set in Vercel.');
     }
   }
 
@@ -148,7 +180,7 @@ const ApiService = (function () {
     // =========================================================================
     auth: {
       async register(name, email, password) {
-        ensureFirebase();
+        await ensureFirebase();
         const cleanName = (name || 'User').trim();
         const cleanEmail = (email || '').trim().toLowerCase();
 
@@ -179,7 +211,7 @@ const ApiService = (function () {
       },
 
       async login(email, password) {
-        ensureFirebase();
+        await ensureFirebase();
         const cleanEmail = (email || '').trim().toLowerCase();
 
         try {
@@ -209,6 +241,9 @@ const ApiService = (function () {
       },
 
       async getMe() {
+        if (!firebaseReady) {
+          await initFirebase();
+        }
         if (!isFirebaseReady()) return null;
 
         return new Promise((resolve) => {
@@ -250,7 +285,7 @@ const ApiService = (function () {
     // =========================================================================
     bills: {
       async getAll() {
-        ensureFirebase();
+        await ensureFirebase();
         try {
           const currentUser = authInstance.currentUser;
           const uid = currentUser ? currentUser.uid : null;
@@ -282,7 +317,7 @@ const ApiService = (function () {
       },
 
       async create(billData) {
-        ensureFirebase();
+        await ensureFirebase();
         const currentUser = (authInstance && authInstance.currentUser) || null;
         const userId = currentUser ? currentUser.uid : 'guest';
         const userEmail = currentUser ? currentUser.email : '';
@@ -315,7 +350,7 @@ const ApiService = (function () {
 
       async delete(billId) {
         if (!billId) return { success: false };
-        ensureFirebase();
+        await ensureFirebase();
 
         try {
           await dbInstance.collection('bills').doc(billId).delete();
@@ -328,7 +363,7 @@ const ApiService = (function () {
 
       async updateDebtStatus(billId, personFrom = 'all', settled = true, upiId = '') {
         if (!billId) return { success: false };
-        ensureFirebase();
+        await ensureFirebase();
 
         try {
           const docRef = dbInstance.collection('bills').doc(billId);
@@ -365,7 +400,7 @@ const ApiService = (function () {
 
       async updateBillUpi(billId, upiId) {
         if (!billId || !upiId) return { success: false };
-        ensureFirebase();
+        await ensureFirebase();
         const cleanUpi = upiId.trim();
 
         try {

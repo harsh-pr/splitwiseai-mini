@@ -1,12 +1,21 @@
-// Firebase Web Configuration for SplitWise.AI
-// Connected directly to Cloud Firestore & Firebase Authentication
+// Firebase Web Configuration Loader
+// Loads configuration dynamically from Vercel Environment Variables (/api/config)
 
-window.FIREBASE_CONFIG = {
-  apiKey: atob("QUl6YVN5QmZrdXZzd25PTzB4c1pMT01UYXNJT1FjNWxUQmZKQUEw"),
-  authDomain: "splitwiseai-miniproject.firebaseapp.com",
-  projectId: "splitwiseai-miniproject",
-  storageBucket: "splitwiseai-miniproject.firebasestorage.app",
-  messagingSenderId: "308774993485",
-  appId: "1:308774993485:web:bbb33fca860a2a4a24e604",
-  measurementId: "G-L7BFNLCFFJ"
-};
+window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || null;
+
+(async function loadFirebaseConfig() {
+  if (!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.apiKey) {
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const cfg = await res.json();
+        if (cfg && cfg.apiKey) {
+          window.FIREBASE_CONFIG = cfg;
+          if (typeof ApiService !== 'undefined' && ApiService.initFirebase) {
+            ApiService.initFirebase();
+          }
+        }
+      }
+    } catch (_) {}
+  }
+})();
