@@ -60,7 +60,8 @@ CRITICAL RULES:
    - For duration splits (e.g. 'Harsh stayed 15 days, Sarthak 15 days'), replace previous duration items with fresh calculated items summing to total ₹${Number(totalAmount || 0).toFixed(2)}.
 3. PARTICIPANTS:
    - NEVER invent 'You', 'User', or 'Me' unless user explicitly wrote 'me' or 'I'.
-   - If user provides names (e.g. 'Harsh', 'Sarthak'), participants MUST strictly be those names.
+   - If user explicitly lists who to split between (e.g., 'split between sarthak and hrudayesh', 'split amongst sarthak and hrudayesh'), 'updatedParticipants' MUST strictly be only those named people: ['Sarthak', 'Hrudayesh'].
+   - If user says 'add X' or 'also include X', keep current participants and append X.
    - In each item's 'assignedTo' array, list the exact participants sharing that item.
 4. PAYER:
    - If user mentions who paid (e.g. 'Sarthak paid'), set 'payer' to that person's exact name.

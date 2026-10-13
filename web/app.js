@@ -174,14 +174,8 @@ const app = (function () {
     try {
       currentUser = await ApiService.auth.getMe();
       updateAuthUI();
-      if (currentUser && currentUser.name) {
-        if (currentParticipants.length === 0) {
-          currentParticipants = [currentUser.name];
-          currentPayer = currentUser.name;
-          renderFriendsChips();
-          renderPayerSelect();
-        }
-      }
+      renderFriendsChips();
+      renderPayerSelect();
     } catch {
       currentUser = null;
       updateAuthUI();
@@ -612,24 +606,20 @@ const app = (function () {
     currentMerchant = title;
     currentTax = 0.0;
     currentTip = 0.0;
-    currentBillingDays = 30;
-    currentBillingPeriod = 'Monthly Bill (30 Days)';
     currentCategoryMeta = {
       subtitle: hasFixedAmount ? 'Direct Split (Fixed Amount)' : 'Itemized Split (AI Chat)',
       directSplit: true,
-      hasFixedAmount: hasFixedAmount,
-      billingDays: 30,
-      billingPeriod: 'Monthly Bill (30 Days)'
+      hasFixedAmount: hasFixedAmount
     };
+    if (currentCategory === 'utilities') {
+      currentBillingDays = 30;
+      currentBillingPeriod = 'Monthly Bill (30 Days)';
+      currentCategoryMeta.billingDays = 30;
+      currentCategoryMeta.billingPeriod = 'Monthly Bill (30 Days)';
+    }
 
     if (currentParticipants.length === 0) {
-      if (currentUser && currentUser.name) {
-        currentParticipants = [currentUser.name];
-        currentPayer = currentUser.name;
-      } else {
-        currentParticipants = [];
-        currentPayer = '';
-      }
+      currentPayer = (currentUser && currentUser.name) ? currentUser.name : '';
       renderFriendsChips();
       renderPayerSelect();
     }
@@ -757,25 +747,22 @@ const app = (function () {
       currentTax = Number(data.tax || data.infoGst || 0);
       currentTip = Number(data.tip || 0);
       currentUtilityMode = 'auto';
-      currentBillingDays = parseInt(data.billingDays, 10) || 30;
-      currentBillingPeriod = data.billingPeriod || data.billingMonth || `${currentBillingDays} Days (Monthly Bill)`;
       currentCategoryMeta = {
         subtitle: data.categorySubtitle || '',
         confidence: data.confidence || '95%',
         taxInclusive: currentTaxInclusive,
-        infoGst: currentTax,
-        billingDays: currentBillingDays,
-        billingPeriod: currentBillingPeriod
+        infoGst: currentTax
       };
 
+      if (currentCategory === 'utilities') {
+        currentBillingDays = parseInt(data.billingDays, 10) || 30;
+        currentBillingPeriod = data.billingPeriod || data.billingMonth || `${currentBillingDays} Days (Monthly Bill)`;
+        currentCategoryMeta.billingDays = currentBillingDays;
+        currentCategoryMeta.billingPeriod = currentBillingPeriod;
+      }
+
       if (currentParticipants.length === 0) {
-        if (currentUser && currentUser.name) {
-          currentParticipants = [currentUser.name];
-          currentPayer = currentUser.name;
-        } else {
-          currentParticipants = [];
-          currentPayer = '';
-        }
+        currentPayer = (currentUser && currentUser.name) ? currentUser.name : '';
         renderFriendsChips();
         renderPayerSelect();
       }
@@ -870,20 +857,48 @@ const app = (function () {
     });
   }
 
+  // Adds the currently logged in user to participants if clicked
+  function addCurrentUserToParticipants() {
+    if (currentUser && currentUser.name && !currentParticipants.includes(currentUser.name)) {
+      currentParticipants.push(currentUser.name);
+      if (!currentPayer) currentPayer = currentUser.name;
+      renderFriendsChips();
+      renderPayerSelect();
+      renderItemsPanel();
+    }
+  }
+
   // Renders friend name badges with remove buttons.
   function renderFriendsChips() {
     const container = document.getElementById('friends-chips-container');
     if (!container) return;
     if (currentParticipants.length === 0) {
-      container.innerHTML = '<span style="color: var(--text-dim); font-size: 12px; font-style: italic;">No friends added yet. Type a name and click Add.</span>';
+      if (currentUser && currentUser.name) {
+        container.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="color: var(--text-dim); font-size: 12px; font-style: italic;">No friends added yet.</span>
+            <button type="button" class="btn btn-outline btn-xs" style="padding: 2px 8px; font-size: 11px; border-radius: 999px; cursor: pointer;" onclick="app.addCurrentUserToParticipants()">+ Add Me (${escapeHtml(currentUser.name)})</button>
+          </div>
+        `;
+      } else {
+        container.innerHTML = '<span style="color: var(--text-dim); font-size: 12px; font-style: italic;">No friends added yet. Type a name and click Add.</span>';
+      }
       return;
     }
-    container.innerHTML = currentParticipants.map(name => `
+    let html = currentParticipants.map(name => `
       <span class="chip">
         ${escapeHtml(name)}
         <span class="chip-del" onclick="app.removeFriend('${escapeHtml(name)}')">&times;</span>
       </span>
     `).join('');
+
+    if (currentUser && currentUser.name && !currentParticipants.includes(currentUser.name)) {
+      html += `
+        <button type="button" class="btn btn-outline btn-xs" style="padding: 2px 8px; font-size: 11px; border-radius: 999px; margin-left: 6px; cursor: pointer;" onclick="app.addCurrentUserToParticipants()">+ Add Me (${escapeHtml(currentUser.name)})</button>
+      `;
+    }
+
+    container.innerHTML = html;
   }
 
   // Adds a new friend to the bill participants list.
@@ -1763,6 +1778,7 @@ const app = (function () {
     setDirectSplitTitle,
     scanReceiptWithAI,
     handleAddFriend,
+    addCurrentUserToParticipants,
     removeFriend,
     addNewDishItem,
     updateItemProp,

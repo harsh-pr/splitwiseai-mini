@@ -90,16 +90,29 @@ EXTRACTION RULES BY CATEGORY:
 9. 'confidence': OCR accuracy estimation (e.g. '95%').
 
 Respond STRICTLY with raw JSON matching this structure without markdown fences:
-{
-  "merchantName": "Store / Merchant / Utility Board",
+${cat === 'utilities' ? `{
+  "merchantName": "Utility Board / Provider",
   "date": "YYYY-MM-DD",
-  "category": "${cat}",
+  "category": "utilities",
   "consumerName": "",
   "consumerNumber": "",
   "unitsConsumed": "",
   "billingMonth": "",
   "billingDays": 30,
   "billingPeriod": "Monthly Bill (30 Days)",
+  "items": [
+    { "name": "Line Item / Charge", "quantity": 1, "price": 100.0 }
+  ],
+  "subtotal": 100.0,
+  "tax": 0.0,
+  "taxInclusive": true,
+  "tip": 0.0,
+  "total": 100.0,
+  "confidence": "95%"
+}` : `{
+  "merchantName": "Store / Restaurant / Merchant",
+  "date": "YYYY-MM-DD",
+  "category": "${cat}",
   "items": [
     { "name": "Item name", "quantity": 1, "price": 100.0 }
   ],
@@ -109,7 +122,7 @@ Respond STRICTLY with raw JSON matching this structure without markdown fences:
   "tip": 0.0,
   "total": 100.0,
   "confidence": "95%"
-}`;
+}`}`;
 
   const payload = {
     contents: [
@@ -192,16 +205,11 @@ Respond STRICTLY with raw JSON matching this structure without markdown fences:
     const tax = Number(parsed.tax || 0);
     const tip = Number(parsed.tip || 0);
 
+    const isUtility = cat === 'utilities';
     const data = {
       merchantName: parsed.merchantName || 'Scanned Bill',
       date: parsed.date || new Date().toISOString().split('T')[0],
       category: parsed.category || cat,
-      consumerName: parsed.consumerName || '',
-      consumerNumber: parsed.consumerNumber || '',
-      unitsConsumed: parsed.unitsConsumed || '',
-      billingMonth: parsed.billingMonth || '',
-      billingDays: parsed.billingDays || 30,
-      billingPeriod: parsed.billingPeriod || 'Monthly Bill (30 Days)',
       items: items.length ? items : [{ name: parsed.merchantName || 'Total Bill', quantity: 1, price: total, assignedTo: [] }],
       tax: tax,
       taxInclusive: parsed.taxInclusive !== false,
@@ -209,6 +217,15 @@ Respond STRICTLY with raw JSON matching this structure without markdown fences:
       total: total,
       confidence: parsed.confidence || '95%'
     };
+
+    if (isUtility) {
+      data.consumerName = parsed.consumerName || '';
+      data.consumerNumber = parsed.consumerNumber || '';
+      data.unitsConsumed = parsed.unitsConsumed || '';
+      data.billingMonth = parsed.billingMonth || '';
+      data.billingDays = parseInt(parsed.billingDays, 10) || 30;
+      data.billingPeriod = parsed.billingPeriod || 'Monthly Bill (30 Days)';
+    }
 
     return res.status(200).json({ success: true, data });
   } catch (err) {

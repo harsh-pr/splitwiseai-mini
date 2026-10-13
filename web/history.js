@@ -22,7 +22,7 @@ const historyApp = (function () {
   // Initializes themes, user status, UPI display, and loads saved bills.
   async function init() {
     initTheme();
-    checkUser();
+    await checkUser();
     updateUpiDisplay();
     await loadHistory();
   }
@@ -124,12 +124,34 @@ const historyApp = (function () {
 
   // Loads all saved bills from the backend and updates stats and filters.
   async function loadHistory() {
+    const listEl = document.getElementById('history-bills-list');
+    const emptyEl = document.getElementById('empty-state');
+    if (listEl) {
+      listEl.innerHTML = `
+        <div style="text-align: center; padding: 48px 20px; color: var(--text-dim);">
+          <div style="display: inline-block; width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px;"></div>
+          <div style="font-size: 13px;">Loading bills from Firebase...</div>
+        </div>
+      `;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+
     try {
       allBills = await ApiService.bills.getAll();
       renderStats();
       applyFilters();
     } catch (err) {
       console.error('Failed to load history:', err);
+      if (listEl) {
+        listEl.innerHTML = `
+          <div style="text-align: center; padding: 40px 20px; color: var(--rose); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
+            <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+            <div style="font-size: 14px; font-weight: 600; margin-bottom: 6px;">Unable to load bills from Firebase</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">${escapeHtml(err.message)}</div>
+            <button class="btn btn-outline btn-sm" onclick="historyApp.loadHistory()">Try Again</button>
+          </div>
+        `;
+      }
     }
   }
 
@@ -558,6 +580,7 @@ const historyApp = (function () {
   document.addEventListener('DOMContentLoaded', init);
 
   return {
+    loadHistory,
     setCategoryFilter,
     applyFilters,
     toggleDrawer,

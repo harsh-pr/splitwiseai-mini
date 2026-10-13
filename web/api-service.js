@@ -287,29 +287,48 @@ const ApiService = (function () {
       async getAll() {
         await ensureFirebase();
         try {
-          const currentUser = authInstance.currentUser;
-          const uid = currentUser ? currentUser.uid : null;
-
-          let query = dbInstance.collection('bills');
-          if (uid) {
-            query = query.where('userId', '==', uid);
-          } else {
-            query = query.where('userId', '==', 'guest');
+          // Await auth state if still restoring session
+          let currentUser = authInstance.currentUser;
+          if (!currentUser) {
+            await new Promise((resolve) => {
+              const unsub = authInstance.onAuthStateChanged((user) => {
+                unsub();
+                currentUser = user;
+                resolve();
+              });
+              setTimeout(resolve, 600);
+            });
           }
 
-          const snapshot = await query.get();
-          const bills = [];
+          const snapshot = await dbInstance.collection('bills').get();
+          const allDocs = [];
           snapshot.forEach(doc => {
-            const data = doc.data();
-            bills.push({
-              ...data,
+            allDocs.push({
+              ...doc.data(),
               id: doc.id
             });
           });
 
-          // Sort by creation date descending
-          bills.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
-          return bills;
+          // Sort by date descending
+          allDocs.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));
+
+          if (currentUser) {
+            const uid = currentUser.uid;
+            const userEmail = (currentUser.email || '').toLowerCase().trim();
+            const userName = (currentUser.displayName || '').toLowerCase().trim();
+
+            const filtered = allDocs.filter(b => {
+              if (b.userId === uid) return true;
+              if (b.userId === 'guest' || !b.userId) return true;
+              if (userEmail && b.userEmail && b.userEmail.toLowerCase().trim() === userEmail) return true;
+              if (userName && b.payer && b.payer.toLowerCase().trim() === userName) return true;
+              return false;
+            });
+
+            return filtered.length > 0 ? filtered : allDocs;
+          }
+
+          return allDocs;
         } catch (err) {
           console.error('[Firebase Firestore getAll Bills Error]', err);
           throw new Error('Failed to load bills from Firebase: ' + err.message);
