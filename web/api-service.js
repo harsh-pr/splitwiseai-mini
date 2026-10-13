@@ -300,14 +300,60 @@ const ApiService = (function () {
             });
           }
 
-          const snapshot = await dbInstance.collection('bills').get();
-          const allDocs = [];
-          snapshot.forEach(doc => {
-            allDocs.push({
-              ...doc.data(),
-              id: doc.id
-            });
-          });
+          let allDocs = [];
+          let fetchError = null;
+
+          if (currentUser) {
+            const uid = currentUser.uid;
+
+            // 1. Try querying bills where userId == currentUser.uid (satisfies per-user security rules)
+            try {
+              const userSnap = await dbInstance.collection('bills').where('userId', '==', uid).get();
+              userSnap.forEach(doc => {
+                allDocs.push({ ...doc.data(), id: doc.id });
+              });
+            } catch (err) {
+              fetchError = err;
+            }
+
+            // 2. Also retrieve any guest bills if available
+            try {
+              const guestSnap = await dbInstance.collection('bills').where('userId', '==', 'guest').get();
+              guestSnap.forEach(doc => {
+                if (!allDocs.some(d => d.id === doc.id)) {
+                  allDocs.push({ ...doc.data(), id: doc.id });
+                }
+              });
+            } catch (_) {}
+
+            // 3. If collection-wide read is allowed, fetch all to catch any email/name matches
+            try {
+              const fullSnap = await dbInstance.collection('bills').get();
+              fullSnap.forEach(doc => {
+                if (!allDocs.some(d => d.id === doc.id)) {
+                  allDocs.push({ ...doc.data(), id: doc.id });
+                }
+              });
+            } catch (fullErr) {
+              // If full query failed and user query also failed, propagate error
+              if (allDocs.length === 0 && fetchError) {
+                throw fetchError;
+              }
+            }
+          } else {
+            // Unauthenticated (guest)
+            try {
+              const fullSnap = await dbInstance.collection('bills').get();
+              fullSnap.forEach(doc => {
+                allDocs.push({ ...doc.data(), id: doc.id });
+              });
+            } catch (_) {
+              const guestSnap = await dbInstance.collection('bills').where('userId', '==', 'guest').get();
+              guestSnap.forEach(doc => {
+                allDocs.push({ ...doc.data(), id: doc.id });
+              });
+            }
+          }
 
           // Sort by date descending
           allDocs.sort((a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0));

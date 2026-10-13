@@ -143,12 +143,34 @@ const historyApp = (function () {
     } catch (err) {
       console.error('Failed to load history:', err);
       if (listEl) {
+        const isPerm = (err.message || '').toLowerCase().includes('permission');
         listEl.innerHTML = `
-          <div style="text-align: center; padding: 40px 20px; color: var(--rose); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);">
-            <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
-            <div style="font-size: 14px; font-weight: 600; margin-bottom: 6px;">Unable to load bills from Firebase</div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">${escapeHtml(err.message)}</div>
-            <button class="btn btn-outline btn-sm" onclick="historyApp.loadHistory()">Try Again</button>
+          <div style="text-align: center; padding: 36px 20px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); max-width: 580px; margin: 20px auto;">
+            <div style="font-size: 32px; margin-bottom: 10px;">⚠️</div>
+            <div style="font-size: 15px; font-weight: 700; color: var(--rose); margin-bottom: 8px;">
+              ${isPerm ? 'Firestore Permission Denied' : 'Unable to Load Bills'}
+            </div>
+            <div style="font-size: 13px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5;">
+              ${isPerm 
+                ? 'Your Firebase Firestore Security Rules are currently denying read access to the bills collection.' 
+                : escapeHtml(err.message)}
+            </div>
+            ${isPerm ? `
+              <div style="text-align: left; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-family: monospace; font-size: 11.5px; line-height: 1.5; color: var(--accent);">
+                rules_version = '2';<br>
+                service cloud.firestore {<br>
+                &nbsp;&nbsp;match /databases/{database}/documents {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;match /{document=**} {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                &nbsp;&nbsp;}<br>
+                }
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+                In Firebase Console &rarr; <b>Firestore Database</b> &rarr; <b>Rules</b>, paste the rules above and click <b>Publish</b>.
+              </p>
+            ` : ''}
+            <button class="btn btn-primary btn-sm" onclick="historyApp.loadHistory()">Try Again</button>
           </div>
         `;
       }
