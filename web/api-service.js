@@ -145,6 +145,7 @@ const ApiService = (function () {
         await ensureFirebase();
         const cleanName = (name || 'User').trim();
         const cleanEmail = (email || '').trim().toLowerCase();
+        const defaultUpi = `${cleanEmail.split('@')[0]}@upi`;
 
         try {
           const cred = await authInstance.createUserWithEmailAndPassword(cleanEmail, password);
@@ -153,10 +154,12 @@ const ApiService = (function () {
             uid: cred.user.uid,
             name: cleanName,
             email: cleanEmail,
+            upiId: defaultUpi,
             createdAt: Date.now()
           }, { merge: true });
 
-          return { id: cred.user.uid, uid: cred.user.uid, name: cleanName, email: cleanEmail };
+          localStorage.setItem('splitwise_user_upi_' + cred.user.uid, defaultUpi);
+          return { id: cred.user.uid, uid: cred.user.uid, name: cleanName, email: cleanEmail, upiId: defaultUpi };
         } catch (err) {
           throw new Error(err.message || 'Registration failed');
         }
@@ -169,13 +172,25 @@ const ApiService = (function () {
         try {
           const cred = await authInstance.signInWithEmailAndPassword(cleanEmail, password);
           let displayName = cred.user.displayName;
-          if (!displayName) {
+          let upiId = '';
+          try {
+            const snap = await dbInstance.collection('users').doc(cred.user.uid).get();
+            if (snap.exists) {
+              const udata = snap.data() || {};
+              if (udata.name) displayName = udata.name;
+              if (udata.upiId) upiId = udata.upiId;
+            }
+          } catch (_) {}
+
+          if (!upiId) {
+            upiId = localStorage.getItem('splitwise_user_upi_' + cred.user.uid) || `${cleanEmail.split('@')[0]}@upi`;
             try {
-              const snap = await dbInstance.collection('users').doc(cred.user.uid).get();
-              if (snap.exists && snap.data().name) displayName = snap.data().name;
+              await dbInstance.collection('users').doc(cred.user.uid).set({ upiId }, { merge: true });
             } catch (_) {}
           }
-          return { id: cred.user.uid, uid: cred.user.uid, name: displayName || cleanEmail.split('@')[0], email: cleanEmail };
+
+          localStorage.setItem('splitwise_user_upi_' + cred.user.uid, upiId);
+          return { id: cred.user.uid, uid: cred.user.uid, name: displayName || cleanEmail.split('@')[0], email: cleanEmail, upiId };
         } catch (err) {
           throw new Error(err.message || 'Invalid email or password');
         }
@@ -190,23 +205,56 @@ const ApiService = (function () {
             unsub();
             if (fbUser) {
               let displayName = fbUser.displayName;
-              if (!displayName) {
+              let upiId = '';
+              try {
+                const snap = await dbInstance.collection('users').doc(fbUser.uid).get();
+                if (snap.exists) {
+                  const udata = snap.data() || {};
+                  if (udata.name) displayName = udata.name;
+                  if (udata.upiId) upiId = udata.upiId;
+                }
+              } catch (_) {}
+
+              if (!upiId) {
+                upiId = localStorage.getItem('splitwise_user_upi_' + fbUser.uid) || `${(fbUser.email || 'user').split('@')[0]}@upi`;
                 try {
-                  const snap = await dbInstance.collection('users').doc(fbUser.uid).get();
-                  if (snap.exists && snap.data().name) displayName = snap.data().name;
+                  await dbInstance.collection('users').doc(fbUser.uid).set({ upiId }, { merge: true });
                 } catch (_) {}
               }
+
+              localStorage.setItem('splitwise_user_upi_' + fbUser.uid, upiId);
               resolve({
                 id: fbUser.uid,
                 uid: fbUser.uid,
                 name: displayName || fbUser.email.split('@')[0],
-                email: fbUser.email
+                email: fbUser.email,
+                upiId
               });
             } else {
               resolve(null);
             }
           });
         });
+      },
+
+      async updateUserUpi(upiId) {
+        await ensureFirebase();
+        const currentUser = authInstance?.currentUser;
+        if (!currentUser) throw new Error('Not logged in');
+        const cleanUpi = (upiId || '').trim();
+        if (!cleanUpi) throw new Error('UPI ID cannot be empty');
+
+        try {
+          await dbInstance.collection('users').doc(currentUser.uid).set({
+            upiId: cleanUpi,
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Could not update user UPI in Firestore:', e);
+        }
+
+        localStorage.setItem('splitwise_user_upi_' + currentUser.uid, cleanUpi);
+        return cleanUpi;
       },
 
       async logout() {

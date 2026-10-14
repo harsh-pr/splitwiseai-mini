@@ -14,13 +14,15 @@ const historyApp = (function () {
     general: '🧾'
   };
 
-  let defaultUpiId = localStorage.getItem('splitwise_default_upi') || 'harsh@upi';
+  let currentUser = null;
+  let defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
   const openDrawers = new Set();
   const openQrBills = new Set();
 
   // init
   async function init() {
     initTheme();
+    try { localStorage.removeItem('splitwise_default_upi'); } catch (_) {}
     await checkUser();
     updateUpiDisplay();
     await loadHistory();
@@ -54,9 +56,20 @@ const historyApp = (function () {
   async function checkUser() {
     try {
       const user = await ApiService.auth.getMe();
+      if (user) {
+        currentUser = user;
+        defaultUpiId = user.upiId || localStorage.getItem('splitwise_user_upi_' + user.uid) || (user.email ? `${user.email.split('@')[0]}@upi` : 'user@upi');
+      } else {
+        currentUser = null;
+        defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+      }
       updateAuthUI(user);
+      updateUpiDisplay();
     } catch {
+      currentUser = null;
+      defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
       updateAuthUI(null);
+      updateUpiDisplay();
     }
   }
 
@@ -95,7 +108,10 @@ const historyApp = (function () {
     try {
       await ApiService.auth.logout();
     } catch {}
+    currentUser = null;
+    defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
     updateAuthUI(null);
+    updateUpiDisplay();
     window.location.href = 'index.html';
   }
 
@@ -106,12 +122,23 @@ const historyApp = (function () {
   }
 
   // edit default upi
-  function promptEditUpiId() {
+  async function promptEditUpiId() {
     const entered = prompt('Enter your default UPI ID (e.g. name@okhdfcbank):', defaultUpiId);
     if (entered && entered.trim().length > 0) {
       defaultUpiId = entered.trim();
-      localStorage.setItem('splitwise_default_upi', defaultUpiId);
+      if (currentUser) {
+        currentUser.upiId = defaultUpiId;
+        localStorage.setItem('splitwise_user_upi_' + currentUser.uid, defaultUpiId);
+        try {
+          await ApiService.auth.updateUserUpi(defaultUpiId);
+        } catch (err) {
+          console.warn('Failed to save default UPI ID to database:', err);
+        }
+      } else {
+        sessionStorage.setItem('splitwise_guest_upi', defaultUpiId);
+      }
       updateUpiDisplay();
+      applyFilters();
     }
   }
 
@@ -268,7 +295,7 @@ const historyApp = (function () {
       const statusText = isSettled ? 'Settled' : 'Pending';
       const unpaidDebts = debts.filter(d => !(d.settled === true || d.status === 'settled' || d.paid === true));
       const isQrOpen = openQrBills.has(bill.id);
-      const receivingUpi = (bill.upiId || bill.receiverUpi || defaultUpiId || 'harsh@upi').trim();
+      const receivingUpi = (bill.upiId || bill.receiverUpi || defaultUpiId || 'guest@upi').trim();
 
       return `
         <div class="history-card" id="bill-card-${bill.id}">

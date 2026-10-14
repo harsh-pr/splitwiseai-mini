@@ -10,8 +10,9 @@ const app = (function () {
   let currentTax = 0.0;
   let currentTip = 0.0;
   let currentTaxInclusive = false;
-  let defaultUpiId = localStorage.getItem('splitwise_default_upi') || 'harsh@upi';
+  let defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
   let billUpiId = defaultUpiId;
+  let customBillUpiSet = false;
   let currentDebts = [];
   let paidStatusMap = {};
   let authMode = 'login';
@@ -25,6 +26,7 @@ const app = (function () {
     // init
   function init() {
     initTheme();
+    try { localStorage.removeItem('splitwise_default_upi'); } catch (_) {}
     checkAuth();
     updateUpiDisplay();
     setupDropzone();
@@ -123,12 +125,22 @@ const app = (function () {
   }
 
     // prompt edit upi
-  function promptEditUpiId() {
+  async function promptEditUpiId() {
     const entered = prompt('Enter your default account UPI ID (e.g. name@okhdfcbank):', defaultUpiId);
     if (entered && entered.trim().length > 0) {
       defaultUpiId = entered.trim();
-      localStorage.setItem('splitwise_default_upi', defaultUpiId);
-      if (!billUpiId || billUpiId === defaultUpiId) {
+      if (currentUser) {
+        currentUser.upiId = defaultUpiId;
+        localStorage.setItem('splitwise_user_upi_' + currentUser.uid, defaultUpiId);
+        try {
+          await ApiService.auth.updateUserUpi(defaultUpiId);
+        } catch (err) {
+          console.warn('Failed to save default UPI ID to database:', err);
+        }
+      } else {
+        sessionStorage.setItem('splitwise_guest_upi', defaultUpiId);
+      }
+      if (!customBillUpiSet) {
         billUpiId = defaultUpiId;
       }
       updateUpiDisplay();
@@ -146,6 +158,10 @@ const app = (function () {
       const clean = String(val).trim();
       if (clean.length > 0) {
         billUpiId = clean;
+        customBillUpiSet = true;
+        if (!currentUser) {
+          sessionStorage.setItem('splitwise_guest_upi', billUpiId);
+        }
         const displayUpi = document.getElementById('display-upi-id');
         if (displayUpi) displayUpi.textContent = billUpiId;
         computeDebtsAndRenderQRs();
@@ -160,6 +176,10 @@ const app = (function () {
     const val = (typeof manualVal === 'string' ? manualVal : (customInput ? customInput.value : '')).trim();
     if (val) {
       billUpiId = val;
+      customBillUpiSet = true;
+      if (!currentUser) {
+        sessionStorage.setItem('splitwise_guest_upi', billUpiId);
+      }
       const displayUpi = document.getElementById('display-upi-id');
       if (displayUpi) displayUpi.textContent = billUpiId;
       computeDebtsAndRenderQRs();
@@ -172,12 +192,24 @@ const app = (function () {
   async function checkAuth() {
     try {
       currentUser = await ApiService.auth.getMe();
+      if (currentUser) {
+        defaultUpiId = currentUser.upiId || localStorage.getItem('splitwise_user_upi_' + currentUser.uid) || (currentUser.email ? `${currentUser.email.split('@')[0]}@upi` : 'user@upi');
+      } else {
+        defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+      }
+      if (!customBillUpiSet) {
+        billUpiId = defaultUpiId;
+      }
       updateAuthUI();
+      updateUpiDisplay();
       renderFriendsChips();
       renderPayerSelect();
     } catch {
       currentUser = null;
+      defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+      if (!customBillUpiSet) billUpiId = defaultUpiId;
       updateAuthUI();
+      updateUpiDisplay();
     }
   }
 
@@ -217,11 +249,23 @@ const app = (function () {
     if (menu) menu.classList.remove('show');
     ApiService.auth.logout().then(() => {
       currentUser = null;
+      customBillUpiSet = false;
+      defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+      billUpiId = defaultUpiId;
       updateAuthUI();
+      updateUpiDisplay();
+      renderFriendsChips();
+      renderPayerSelect();
       showBanner('Logged out successfully', 'success');
     }).catch(() => {
       currentUser = null;
+      customBillUpiSet = false;
+      defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+      billUpiId = defaultUpiId;
       updateAuthUI();
+      updateUpiDisplay();
+      renderFriendsChips();
+      renderPayerSelect();
     });
   }
 
