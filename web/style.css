@@ -1759,6 +1759,81 @@ body {
   display: block;
 }
 
+/* History Debts Summary & Debt Pills */
+.history-debts-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.debt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 6px 5px 12px;
+  font-size: 12.5px;
+  transition: all 0.15s ease;
+}
+
+.debt-pill.paid {
+  border-color: rgba(52, 199, 89, 0.4);
+}
+
+.debt-pill-name {
+  color: var(--text-dim);
+}
+
+.debt-pill-amt {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.debt-pill.paid .debt-pill-amt {
+  color: var(--emerald);
+}
+
+.debt-pill-btn {
+  background: var(--surface-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.debt-pill-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.debt-pill.paid .debt-pill-btn {
+  background: rgba(52, 199, 89, 0.15);
+  color: var(--emerald);
+  border-color: rgba(52, 199, 89, 0.3);
+}
+
+.debt-pill.paid .debt-pill-btn:hover {
+  background: rgba(52, 199, 89, 0.25);
+}
+
+/* History Actions Bar */
+.history-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
 .drawer-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1841,6 +1916,16 @@ input:focus, select:focus {
 .btn-danger:hover { 
   background: var(--danger); 
   color: #fff; 
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-outline:hover {
+  background: var(--surface-alt);
+  border-color: var(--text-muted);
 }
 
 .btn-sm { padding: 4px 9px; font-size: 12px; }
