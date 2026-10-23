@@ -85,6 +85,11 @@ public class LocalDatabase {
                             Map<String, Object> u = (Map<String, Object>) o;
                             String id = JsonUtil.getString(u, "id", UUID.randomUUID().toString());
                             String email = JsonUtil.getString(u, "email", "").toLowerCase().trim();
+                            if (!u.containsKey("upiId") || u.get("upiId") == null || u.get("upiId").toString().trim().isEmpty()) {
+                                if (!email.isEmpty()) {
+                                    u.put("upiId", email.split("@")[0] + "@upi");
+                                }
+                            }
                             users.put(id, u);
                             if (!email.isEmpty()) {
                                 userEmailIndex.put(email, id);
@@ -272,6 +277,7 @@ public class LocalDatabase {
             user.put("id", userId);
             user.put("name", name.trim());
             user.put("email", normEmail);
+            user.put("upiId", normEmail.split("@")[0] + "@upi");
             user.put("passwordHash", hash);
             user.put("salt", salt);
             user.put("createdAt", System.currentTimeMillis());
@@ -333,6 +339,23 @@ public class LocalDatabase {
             return user != null ? sanitizeUser(user) : null;
         } finally {
             lock.readLock().unlock();
+        }
+    }
+
+        // update user upi
+    public boolean updateUserUpi(String userId, String upiId) {
+        if (userId == null || userId.trim().isEmpty()) return false;
+        lock.writeLock().lock();
+        try {
+            Map<String, Object> user = users.get(userId.trim());
+            if (user != null) {
+                user.put("upiId", upiId != null ? upiId.trim() : "");
+                saveUsersInternal();
+                return true;
+            }
+            return false;
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 

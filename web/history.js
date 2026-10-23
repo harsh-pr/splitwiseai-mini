@@ -15,14 +15,19 @@ const historyApp = (function () {
   };
 
   let currentUser = null;
-  let defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+  let defaultUpiId = 'guest@upi';
   const openDrawers = new Set();
   const openQrBills = new Set();
 
   // init
   async function init() {
     initTheme();
-    try { localStorage.removeItem('splitwise_default_upi'); } catch (_) {}
+    try {
+      sessionStorage.removeItem('splitwise_guest_upi');
+      sessionStorage.removeItem('splitwise_default_upi');
+      localStorage.removeItem('splitwise_default_upi');
+      localStorage.removeItem('splitwise_guest_upi');
+    } catch (_) {}
     await checkUser();
     updateUpiDisplay();
     await loadHistory();
@@ -61,13 +66,13 @@ const historyApp = (function () {
         defaultUpiId = user.upiId || localStorage.getItem('splitwise_user_upi_' + user.uid) || (user.email ? `${user.email.split('@')[0]}@upi` : 'user@upi');
       } else {
         currentUser = null;
-        defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+        defaultUpiId = 'guest@upi';
       }
       updateAuthUI(user);
       updateUpiDisplay();
     } catch {
       currentUser = null;
-      defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+      defaultUpiId = 'guest@upi';
       updateAuthUI(null);
       updateUpiDisplay();
     }
@@ -106,10 +111,14 @@ const historyApp = (function () {
     const menu = document.getElementById('profile-dropdown-menu');
     if (menu) menu.classList.remove('show');
     try {
+      sessionStorage.removeItem('splitwise_guest_upi');
+      sessionStorage.removeItem('splitwise_default_upi');
+    } catch (_) {}
+    try {
       await ApiService.auth.logout();
     } catch {}
     currentUser = null;
-    defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+    defaultUpiId = 'guest@upi';
     updateAuthUI(null);
     updateUpiDisplay();
     window.location.href = 'index.html';
@@ -134,9 +143,8 @@ const historyApp = (function () {
         } catch (err) {
           console.warn('Failed to save default UPI ID to database:', err);
         }
-      } else {
-        sessionStorage.setItem('splitwise_guest_upi', defaultUpiId);
       }
+      // Note: Guest mode is not written to storage so it resets on refresh!
       updateUpiDisplay();
       applyFilters();
     }

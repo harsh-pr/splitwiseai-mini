@@ -251,8 +251,9 @@ const ApiService = (function () {
 
         if (backendUser) {
           backendUser.uid = backendUser.id;
-          const upiId = localStorage.getItem('splitwise_user_upi_' + backendUser.id) || `${cleanEmail.split('@')[0]}@upi`;
+          const upiId = backendUser.upiId || localStorage.getItem('splitwise_user_upi_' + backendUser.id) || `${cleanEmail.split('@')[0]}@upi`;
           backendUser.upiId = upiId;
+          localStorage.setItem('splitwise_user_upi_' + backendUser.id, upiId);
           return backendUser;
         }
 
@@ -303,7 +304,8 @@ const ApiService = (function () {
             if (res?.user) {
               const u = res.user;
               u.uid = u.id;
-              u.upiId = localStorage.getItem('splitwise_user_upi_' + u.id) || `${(u.email || 'user').split('@')[0]}@upi`;
+              u.upiId = u.upiId || localStorage.getItem('splitwise_user_upi_' + u.id) || `${(u.email || 'user').split('@')[0]}@upi`;
+              localStorage.setItem('splitwise_user_upi_' + u.id, u.upiId);
               return u;
             }
           } catch (_) {
@@ -327,6 +329,15 @@ const ApiService = (function () {
           localStorage.setItem('splitwise_user_upi_' + user.uid, cleanUpi);
         }
 
+        // 1. Update on Java backend database
+        try {
+          await request('/auth/upi', {
+            method: 'PUT',
+            body: JSON.stringify({ upiId: cleanUpi })
+          });
+        } catch (_) {}
+
+        // 2. Update on Firestore if available
         if (isFirebaseReady() || await initFirebase()) {
           const fbUser = authInstance?.currentUser;
           if (fbUser) {

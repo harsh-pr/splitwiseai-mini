@@ -10,8 +10,8 @@ const app = (function () {
   let currentTax = 0.0;
   let currentTip = 0.0;
   let currentTaxInclusive = false;
-  let defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
-  let billUpiId = defaultUpiId;
+  let defaultUpiId = 'guest@upi';
+  let billUpiId = 'guest@upi';
   let customBillUpiSet = false;
   let currentDebts = [];
   let paidStatusMap = {};
@@ -26,7 +26,12 @@ const app = (function () {
     // init
   function init() {
     initTheme();
-    try { localStorage.removeItem('splitwise_default_upi'); } catch (_) {}
+    try {
+      sessionStorage.removeItem('splitwise_guest_upi');
+      sessionStorage.removeItem('splitwise_default_upi');
+      localStorage.removeItem('splitwise_default_upi');
+      localStorage.removeItem('splitwise_guest_upi');
+    } catch (_) {}
     checkAuth();
     updateUpiDisplay();
     setupDropzone();
@@ -137,9 +142,8 @@ const app = (function () {
         } catch (err) {
           console.warn('Failed to save default UPI ID to database:', err);
         }
-      } else {
-        sessionStorage.setItem('splitwise_guest_upi', defaultUpiId);
       }
+      // Guest mode stays in memory only for current page visit (resets on refresh)
       if (!customBillUpiSet) {
         billUpiId = defaultUpiId;
       }
@@ -159,9 +163,6 @@ const app = (function () {
       if (clean.length > 0) {
         billUpiId = clean;
         customBillUpiSet = true;
-        if (!currentUser) {
-          sessionStorage.setItem('splitwise_guest_upi', billUpiId);
-        }
         const displayUpi = document.getElementById('display-upi-id');
         if (displayUpi) displayUpi.textContent = billUpiId;
         computeDebtsAndRenderQRs();
@@ -177,9 +178,6 @@ const app = (function () {
     if (val) {
       billUpiId = val;
       customBillUpiSet = true;
-      if (!currentUser) {
-        sessionStorage.setItem('splitwise_guest_upi', billUpiId);
-      }
       const displayUpi = document.getElementById('display-upi-id');
       if (displayUpi) displayUpi.textContent = billUpiId;
       computeDebtsAndRenderQRs();
@@ -195,7 +193,7 @@ const app = (function () {
       if (currentUser) {
         defaultUpiId = currentUser.upiId || localStorage.getItem('splitwise_user_upi_' + currentUser.uid) || (currentUser.email ? `${currentUser.email.split('@')[0]}@upi` : 'user@upi');
       } else {
-        defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+        defaultUpiId = 'guest@upi';
       }
       if (!customBillUpiSet) {
         billUpiId = defaultUpiId;
@@ -206,7 +204,7 @@ const app = (function () {
       renderPayerSelect();
     } catch {
       currentUser = null;
-      defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
+      defaultUpiId = 'guest@upi';
       if (!customBillUpiSet) billUpiId = defaultUpiId;
       updateAuthUI();
       updateUpiDisplay();
@@ -247,11 +245,15 @@ const app = (function () {
   function handleLogout() {
     const menu = document.getElementById('profile-dropdown-menu');
     if (menu) menu.classList.remove('show');
+    try {
+      sessionStorage.removeItem('splitwise_guest_upi');
+      sessionStorage.removeItem('splitwise_default_upi');
+    } catch (_) {}
     ApiService.auth.logout().then(() => {
       currentUser = null;
       customBillUpiSet = false;
-      defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
-      billUpiId = defaultUpiId;
+      defaultUpiId = 'guest@upi';
+      billUpiId = 'guest@upi';
       updateAuthUI();
       updateUpiDisplay();
       renderFriendsChips();
@@ -260,8 +262,8 @@ const app = (function () {
     }).catch(() => {
       currentUser = null;
       customBillUpiSet = false;
-      defaultUpiId = sessionStorage.getItem('splitwise_guest_upi') || 'guest@upi';
-      billUpiId = defaultUpiId;
+      defaultUpiId = 'guest@upi';
+      billUpiId = 'guest@upi';
       updateAuthUI();
       updateUpiDisplay();
       renderFriendsChips();

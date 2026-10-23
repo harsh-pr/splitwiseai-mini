@@ -33,11 +33,19 @@ public class AuthHandler extends BaseHandler {
             }
             handleLogin(exchange);
         } else if ("/api/auth/me".equalsIgnoreCase(path)) {
-            if (!"GET".equalsIgnoreCase(method)) {
+            if ("PUT".equalsIgnoreCase(method)) {
+                handleUpdateUpi(exchange);
+            } else if ("GET".equalsIgnoreCase(method)) {
+                handleMe(exchange);
+            } else {
+                sendError(exchange, 405, "Method not allowed");
+            }
+        } else if ("/api/auth/upi".equalsIgnoreCase(path)) {
+            if (!"PUT".equalsIgnoreCase(method) && !"POST".equalsIgnoreCase(method)) {
                 sendError(exchange, 405, "Method not allowed");
                 return;
             }
-            handleMe(exchange);
+            handleUpdateUpi(exchange);
         } else if ("/api/auth/logout".equalsIgnoreCase(path)) {
             if (!"POST".equalsIgnoreCase(method)) {
                 sendError(exchange, 405, "Method not allowed");
@@ -126,6 +134,33 @@ public class AuthHandler extends BaseHandler {
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("success", true);
         res.put("user", user);
+
+        sendJson(exchange, 200, res);
+    }
+
+        // update upi
+    private void handleUpdateUpi(HttpExchange exchange) throws Exception {
+        Map<String, Object> user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendError(exchange, 401, "Not authenticated or session expired.");
+            return;
+        }
+
+        String body = readRequestBody(exchange);
+        Map<String, Object> req = JsonUtil.parseObject(body);
+        String upiId = JsonUtil.getString(req, "upiId", "").trim();
+
+        if (upiId.isEmpty()) {
+            sendError(exchange, 400, "UPI ID is required.");
+            return;
+        }
+
+        String userId = JsonUtil.getString(user, "id", "");
+        boolean updated = db.updateUserUpi(userId, upiId);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("success", updated);
+        res.put("upiId", upiId);
 
         sendJson(exchange, 200, res);
     }
