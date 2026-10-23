@@ -35,7 +35,7 @@ public class BillHandler extends BaseHandler {
         // get bills
     private void handleGetBills(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
-        String userId = user != null ? JsonUtil.getString(user, "id", "") : "";
+        String userId = user != null ? JsonUtil.getString(user, "id", "") : "guest";
 
         List<Map<String, Object>> bills = db.getBills(userId);
 
@@ -166,7 +166,7 @@ public class BillHandler extends BaseHandler {
         // delete bill
     private void handleDeleteBill(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
-        String userId = user != null ? JsonUtil.getString(user, "id", "") : "";
+        String userId = user != null ? JsonUtil.getString(user, "id", "") : "guest";
 
         Map<String, String> params = parseQueryParams(exchange.getRequestURI().getQuery());
         String billId = params.get("id");
@@ -190,7 +190,7 @@ public class BillHandler extends BaseHandler {
         // update bill
     private void handleUpdateDebt(HttpExchange exchange) throws Exception {
         Map<String, Object> user = getAuthenticatedUser(exchange);
-        String userId = user != null ? JsonUtil.getString(user, "id", "") : "";
+        String userId = user != null ? JsonUtil.getString(user, "id", "") : "guest";
 
         String body = readRequestBody(exchange);
         Map<String, Object> req = JsonUtil.parseObject(body);

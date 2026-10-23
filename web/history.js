@@ -150,7 +150,7 @@ const historyApp = (function () {
       listEl.innerHTML = `
         <div style="text-align: center; padding: 48px 20px; color: var(--text-dim);">
           <div style="display: inline-block; width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px;"></div>
-          <div style="font-size: 13px;">Loading bills from Firebase...</div>
+          <div style="font-size: 13px;">Loading bills...</div>
         </div>
       `;
     }

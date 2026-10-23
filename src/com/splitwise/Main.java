@@ -44,6 +44,15 @@ public class Main {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 
+            server.createContext("/api/config", exchange -> {
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                byte[] resp = "{}".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, resp.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(resp);
+                }
+            });
             server.createContext("/api/health", new HealthHandler(geminiClient.isConfigured()));
             server.createContext("/api/auth", new AuthHandler(db));
             server.createContext("/api/bills", new BillHandler(db));

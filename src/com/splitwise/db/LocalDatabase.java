@@ -413,14 +413,6 @@ public class LocalDatabase {
                 return true;
             }
 
-            for (Map.Entry<String, Map<String, Map<String, Object>>> entry : userBills.entrySet()) {
-                if (entry.getValue().containsKey(billId)) {
-                    entry.getValue().remove(billId);
-                    saveUserBillsInternal(entry.getKey());
-                    return true;
-                }
-            }
-
             return false;
         } finally {
             lock.writeLock().unlock();
@@ -435,16 +427,6 @@ public class LocalDatabase {
 
             Map<String, Map<String, Object>> billsMap = userBills.get(targetUser);
             Map<String, Object> bill = (billsMap != null) ? billsMap.get(billId) : null;
-            if (bill == null) {
-                for (Map.Entry<String, Map<String, Map<String, Object>>> entry : userBills.entrySet()) {
-                    if (entry.getValue().containsKey(billId)) {
-                        bill = entry.getValue().get(billId);
-                        targetUser = entry.getKey();
-                        break;
-                    }
-                }
-            }
-
             if (bill == null) return false;
 
             List<Object> debts = JsonUtil.getList(bill, "debts");
@@ -479,16 +461,6 @@ public class LocalDatabase {
 
             Map<String, Map<String, Object>> billsMap = userBills.get(targetUser);
             Map<String, Object> bill = (billsMap != null) ? billsMap.get(billId) : null;
-            if (bill == null) {
-                for (Map.Entry<String, Map<String, Map<String, Object>>> entry : userBills.entrySet()) {
-                    if (entry.getValue().containsKey(billId)) {
-                        bill = entry.getValue().get(billId);
-                        targetUser = entry.getKey();
-                        break;
-                    }
-                }
-            }
-
             if (bill == null) return false;
 
             bill.put("upiId", newUpiId != null ? newUpiId.trim() : "");
