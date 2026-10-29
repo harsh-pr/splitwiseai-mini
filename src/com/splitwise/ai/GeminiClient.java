@@ -16,11 +16,8 @@ public class GeminiClient {
     private final HttpClient httpClient;
 
     private static final String[] MODELS = {
-        "gemini-flash-lite-latest",
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-latest",
-        "gemini-2.5-flash"
+        "gemini-2.5-flash",
+        "gemini-3.1-flash-lite"
     };
 
         // init client
@@ -890,7 +887,7 @@ public class GeminiClient {
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(endpoint))
                         .header("Content-Type", "application/json")
-                        .timeout(Duration.ofSeconds(25))
+                        .timeout(Duration.ofSeconds(15))
                         .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                         .build();
 
