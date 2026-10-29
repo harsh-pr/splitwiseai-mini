@@ -390,6 +390,7 @@ public class GeminiClient {
         boolean isUtility = "utilities".equalsIgnoreCase(cat);
         boolean hasFixedTarget = (targetBillTotal > 0) || (isUtility && existingTotal > 0);
         double effectiveTotal = (targetBillTotal > 0) ? targetBillTotal : (isUtility ? existingTotal : 0.0);
+        boolean isDurationPrompt = isStayDurationPrompt(userPrompt);
 
         List<String> cleanInputParticipants = new ArrayList<>();
         if (participants != null) {
@@ -402,9 +403,15 @@ public class GeminiClient {
 
         StringBuilder sysPrompt = new StringBuilder();
         sysPrompt.append("You are SplitWise AI's intelligent expense and split management engine.\n")
-                .append("Selected expense category: ").append(cat).append(".\n")
-                .append("Current line items: ").append(JsonUtil.stringify(sanitizedExistingItems)).append("\n")
-                .append("Current participants: ").append(JsonUtil.stringify(cleanInputParticipants)).append("\n")
+                .append("Selected expense category: ").append(cat).append(".\n");
+
+        if (isDurationPrompt) {
+            sysPrompt.append("Current line items: [] (STAY DURATION PROMPT DETECTED: Discard all prior line items, whether raw electricity charges or prior duration items, and generate fresh stay share items).\n");
+        } else {
+            sysPrompt.append("Current line items: ").append(JsonUtil.stringify(sanitizedExistingItems)).append("\n");
+        }
+
+        sysPrompt.append("Current participants: ").append(JsonUtil.stringify(cleanInputParticipants)).append("\n")
                 .append("Current designated payer: ").append(payer.isEmpty() ? "(Not set yet)" : payer).append("\n");
 
         if (hasFixedTarget && effectiveTotal > 0) {
@@ -427,17 +434,18 @@ public class GeminiClient {
                 .append("       Divide the existing total (₹").append(String.format(Locale.US, "%.2f", effectiveTotal > 0 ? effectiveTotal : existingTotal)).append(") equally among the items, replacing the placeholder.\n")
                 .append("   - If current items already have real items (e.g. 'Cold Coffee', 'Pizza', 'Water'):\n")
                 .append("     * In restaurant/grocery: KEEP previously listed real items when adding extra dishes.\n")
-                .append("     * CRITICAL OVERRIDE FOR FLAT & UTILITIES DURATION SPLITS: When user specifies, updates, or re-states stay durations or flatmate stay timelines (e.g. 'Harsh 15 days, Sarthak 15 days' or 'Harsh stayed 15 days with Sarthak. Sarthak stayed 15 days with Hrudayesh and Rigved'), DO NOT KEEP PREVIOUS DURATION ITEMS! COMPLETELY DISCARD previous duration items and recalculate fresh items reflecting the user's latest stay prompt!\n")
+                .append("     * CRITICAL OVERRIDE FOR STAY DURATION SPLITS (FIRST PROMPT & SUBSEQUENT): When user specifies, updates, or states stay durations, timelines, or flatmate stay periods (e.g. 'sarthak stayed for first 10 days...', 'Harsh 15 days, Sarthak 15 days'), DO NOT KEEP ANY EXISTING ITEMS (NEVER keep raw electricity/utility charges like 'Fixed Charges', 'Energy Charges', 'Wheeling Charges', and never keep old stay items)! COMPLETELY DISCARD all previous items and calculate fresh stay share items for each flatmate on the VERY FIRST PROMPT!\n")
                 .append("     * When user updates or deletes an item (e.g. 'remove pizza', 'change water to 3'): update or remove that item.\n\n")
                 .append("3. ITEM EXTRACTION, QUANTITY & TOTAL PRICE:\n")
                 .append("   - Create a separate JSON item for each distinct dish/product. Never merge multiple dishes into one line.\n")
                 .append("   - 'price' in the JSON MUST be the TOTAL price for that line item (e.g. if '2 fries for 100rs each', quantity is 2 and price is 200.0).\n")
                 .append("   - If user says '3 cold coffee for 300rs', quantity is 3 and total price is 300.0.\n\n")
-                .append("4. PARTICIPANT DISCOVERY & STRICT PROHIBITION ON INVENTING 'Me', 'User', OR 'You':\n")
+                .append("4. PARTICIPANT DISCOVERY & STRICT ALLOCATION RULES:\n")
                 .append("   - STRICT PROHIBITION ON INVENTING PARTICIPANTS: NEVER EVER invent, add, or output 'You', 'User', or 'Me' unless the user EXPLICITLY wrote the literal word 'me', 'I', or 'myself' in the prompt!\n")
-                .append("   - If the user lists specific names (e.g. 'Harsh stayed 15 days with Sarthak. Sarthak stayed 15 days with Hrudayesh and Rigved'), the participants are ONLY the explicitly named people: ['Harsh', 'Sarthak', 'Hrudayesh', 'Rigved']. DO NOT add 'Me'!\n")
-                .append("   - In utility duration splits, 'updatedParticipants' MUST contain ONLY the active flatmates with stay shares. Prune out any previous unused participants or stray 'Me'.\n")
-                .append("   - In each item's 'assignedTo' array, list the exact participants sharing that item.\n")
+                .append("   - If the user lists specific names (e.g. 'sarthak stayed for first 10 days. harsh stayed for last 10 days. and rigved stayed for full month'), the participants are ONLY the explicitly named people: ['Sarthak', 'Harsh', 'Rigved']. DO NOT add 'Me'!\n")
+                .append("   - In stay duration splits, 'updatedParticipants' MUST contain ONLY the active flatmates with stay shares. Prune out any previous unused participants or stray 'Me'.\n")
+                .append("   - STRICT PROHIBITION ON ROUND-ROBIN / 1-PERSON-PER-ITEM ASSIGNMENT: NEVER assign items round-robin to 1 person each (e.g. Item 1 to Person A, Item 2 to Person B, Item 3 to Person C) when splitting equally or sharing bills! Unless the user explicitly assigned individual dishes to specific people ('A had pasta, B had pizza'), ALL shared participants MUST be assigned to every shared item ('assignedTo': [\"A\", \"B\", \"C\"]).\n")
+                .append("   - FOR STAY DURATION ITEMS: Each person's stay share item MUST be assigned to ONLY that person: 'assignedTo': [\"PersonName\"]. NEVER assign someone else's stay share to other flatmates! Previous allocations MUST be completely cleared.\n")
                 .append("   - If user says 'split equally', assign all current participants to every item.\n\n")
                 .append("5. PAYER IDENTIFICATION:\n")
                 .append("   - If user mentions who paid (e.g. 'sarthak paid the bill', 'Harsh paid', 'I paid'), set 'payer' to that person's exact name.\n")
@@ -446,25 +454,25 @@ public class GeminiClient {
                 .append("   - When category is 'utilities' or user is splitting electricity, wifi/broadband, or flat maintenance:\n")
                 .append("   - A. DURATION-BASED STAY SPLIT:\n")
                 .append("     * A utility bill covers a monthly billing cycle (usually 30 days, or 28-31 days as specified on bill). No person can stay more than the billing cycle days (max 30 days per person in a 30-day bill).\n")
-                .append("     * ALWAYS RECALCULATE FRESH ITEMS: Whenever user specifies stay days or flatmate timelines, COMPLETELY REPLACE previous duration items with the newly calculated breakdown. NEVER retain old duration items!\n")
-                .append("     * TIMELINE & OVERLAP RESOLUTION (e.g. 'Harsh stayed 15 days with Sarthak. Sarthak stayed 15 days with Hrudayesh and Rigved'):\n")
-                .append("       - Understand the periods: Period 1 (15 days): Harsh & Sarthak. Period 2 (15 days): Sarthak, Hrudayesh & Rigved.\n")
-                .append("       - Total days in month = 15 + 15 = 30 days.\n")
-                .append("       - Flatmates' total stay:\n")
-                .append("         * Harsh: 15 days (Period 1 only)\n")
-                .append("         * Sarthak: 30 days (Full month: 15 days in Period 1 + 15 days in Period 2!)\n")
-                .append("         * Hrudayesh: 15 days (Period 2 only)\n")
-                .append("         * Rigved: 15 days (Period 2 only)\n")
-                .append("       - Participants are ONLY [Harsh, Sarthak, Hrudayesh, Rigved]. NEVER add 'Me'!\n")
-                .append("       - Accurate proportional cost calculation for the total bill (₹").append(String.format(Locale.US, "%.2f", effectiveTotal)).append("):\n")
-                .append("         Period 1 cost (15/30 * Total) = 50% of total bill, split equally between Harsh & Sarthak.\n")
-                .append("         Period 2 cost (15/30 * Total) = 50% of total bill, split equally among Sarthak, Hrudayesh & Rigved.\n")
-                .append("         Harsh share = Period 1 / 2.\n")
-                .append("         Sarthak share = (Period 1 / 2) + (Period 2 / 3). (Sarthak pays more because he stayed the whole month!).\n")
-                .append("         Hrudayesh share = Period 2 / 3.\n")
-                .append("         Rigved share = Period 2 / 3.\n")
-                .append("         Sum of shares EXACTLY EQUALS the total bill (₹").append(String.format(Locale.US, "%.2f", effectiveTotal)).append(").\n")
-                .append("       - Output items STRICTLY as: { \"name\": \"Harsh (15 days)\", \"quantity\": 1, \"price\": <share>, \"assignedTo\": [\"Harsh\"] }, { \"name\": \"Sarthak (30 days)\", \"quantity\": 1, \"price\": <share>, \"assignedTo\": [\"Sarthak\"] }, etc.\n")
+                .append("     * ALWAYS RECALCULATE FRESH ITEMS IMMEDIATELY: Whenever user specifies stay days or flatmate timelines, COMPLETELY REPLACE previous items with the newly calculated breakdown on the first prompt! NEVER retain raw utility items or old duration items!\n")
+                .append("     * ALWAYS INCLUDE THE NUMBER OF DAYS IN PARENTHESES IN THE ITEM NAME: e.g. 'Sarthak (10 days - First 10 Days)', 'Harsh (10 days - Last 10 Days)', 'Rigved (30 days - Full Month)'. NEVER write just '(Full Month)' without '(30 days)'!\n")
+                .append("     * TIMELINE & OVERLAP RESOLUTION EXAMPLES:\n")
+                .append("       Example 1 ('Harsh stayed 15 days with Sarthak. Sarthak stayed 15 days with Hrudayesh and Rigved'):\n")
+                .append("         - Total days = 30 days. Period 1 (15 days): Harsh & Sarthak. Period 2 (15 days): Sarthak, Hrudayesh & Rigved.\n")
+                .append("         - Proportional cost for total bill (₹").append(String.format(Locale.US, "%.2f", effectiveTotal)).append("):\n")
+                .append("           Period 1 cost = 50% of bill, split equally between Harsh & Sarthak.\n")
+                .append("           Period 2 cost = 50% of bill, split equally among Sarthak, Hrudayesh & Rigved.\n")
+                .append("           Harsh: Period 1 / 2. Sarthak: (Period 1 / 2) + (Period 2 / 3). Hrudayesh: Period 2 / 3. Rigved: Period 2 / 3.\n")
+                .append("       Example 2 ('Sarthak stayed for first 10 days. Harsh stayed for last 10 days. And Rigved stayed for full month'):\n")
+                .append("         - Total month = 30 days. Total bill = ₹").append(String.format(Locale.US, "%.2f", effectiveTotal)).append(" (₹").append(String.format(Locale.US, "%.2f", effectiveTotal > 0 ? (effectiveTotal / 30.0) : 80.67)).append(" / day).\n")
+                .append("         - Period 1 (Days 1 to 10 = 10 days): Sarthak & Rigved (2 flatmates). Cost = 10 days = 1/3 of total bill. Split equally: Sarthak pays 1/6, Rigved pays 1/6.\n")
+                .append("         - Period 2 (Days 11 to 20 = 10 days): Rigved alone (1 flatmate). Cost = 10 days = 1/3 of total bill. Rigved pays full 1/3.\n")
+                .append("         - Period 3 (Days 21 to 30 = 10 days): Harsh & Rigved (2 flatmates). Cost = 10 days = 1/3 of total bill. Split equally: Harsh pays 1/6, Rigved pays 1/6.\n")
+                .append("         - Final shares:\n")
+                .append("           * Sarthak share = (1/6) * Total = ₹").append(String.format(Locale.US, "%.2f", effectiveTotal > 0 ? (effectiveTotal / 6.0) : 403.33)).append(" -> item: 'Sarthak (10 days - First 10 Days)', assignedTo: ['Sarthak']\n")
+                .append("           * Harsh share = (1/6) * Total = ₹").append(String.format(Locale.US, "%.2f", effectiveTotal > 0 ? (effectiveTotal / 6.0) : 403.33)).append(" -> item: 'Harsh (10 days - Last 10 Days)', assignedTo: ['Harsh']\n")
+                .append("           * Rigved share = (1/6 + 2/6 + 1/6) = (4/6) * Total = ₹").append(String.format(Locale.US, "%.2f", effectiveTotal > 0 ? (effectiveTotal * 4.0 / 6.0) : 1613.34)).append(" -> item: 'Rigved (30 days - Full Month)', assignedTo: ['Rigved']\n")
+                .append("           * Sum of shares EXACTLY equals the total bill (₹").append(String.format(Locale.US, "%.2f", effectiveTotal)).append(").\n")
                 .append("     * SIMPLE INDEPENDENT STAY DAYS (e.g. 'Harsh 15 days, Sarthak 15 days, Hrudayesh 10 days, Rigved 14 days'):\n")
                 .append("       - Calculate person-days: Harsh 15, Sarthak 15, Hrudayesh 10, Rigved 14. Total = 54 person-days.\n")
                 .append("       - Each person's share = round((days / total_days) * total_bill, 2).\n")
@@ -537,6 +545,9 @@ public class GeminiClient {
         if ("you".equalsIgnoreCase(returnedPayer) || (!userMentionedMe && "me".equalsIgnoreCase(returnedPayer))) {
             returnedPayer = cleanParts.isEmpty() ? "" : cleanParts.get(0);
         }
+        if ((returnedPayer == null || returnedPayer.isEmpty()) && !payer.isEmpty()) {
+            returnedPayer = payer;
+        }
         chatRes.put("payer", returnedPayer);
 
         List<Object> rawUpdated = JsonUtil.getList(chatRes, "updatedItems");
@@ -601,11 +612,86 @@ public class GeminiClient {
             }
         }
 
+        boolean hasDurationItem = false;
+        for (Map<String, Object> it : cleanUpdated) {
+            String n = JsonUtil.getString(it, "name", "");
+            if (isItemDurationShare(n)) {
+                hasDurationItem = true;
+                break;
+            }
+        }
+
+        if (isDurationPrompt || hasDurationItem) {
+            List<Map<String, Object>> durationItemsOnly = new ArrayList<>();
+            for (Map<String, Object> it : cleanUpdated) {
+                String n = JsonUtil.getString(it, "name", "");
+                if (isItemDurationShare(n) || isDurationPrompt) {
+                    if (n.matches("(?i).*\\b(full\\s*month)\\b.*") && !n.matches("(?i).*\\b\\d+\\s*(days?|day)\\b.*")) {
+                        n = n.replaceAll("(?i)\\((?:full\\s*month)\\)", "(30 days - Full Month)");
+                        if (!n.contains("30 days")) {
+                            n = n + " (30 days - Full Month)";
+                        }
+                        it.put("name", n);
+                    } else if (n.matches("(?i).*\\b(half\\s*month)\\b.*") && !n.matches("(?i).*\\b\\d+\\s*(days?|day)\\b.*")) {
+                        n = n.replaceAll("(?i)\\((?:half\\s*month)\\)", "(15 days - Half Month)");
+                        if (!n.contains("15 days")) {
+                            n = n + " (15 days - Half Month)";
+                        }
+                        it.put("name", n);
+                    }
+
+                    List<Object> rawAssign = JsonUtil.getList(it, "assignedTo");
+                    String matchedPerson = null;
+                    for (String p : cleanParts) {
+                        if (n.toLowerCase().matches("(?i).*\\b" + java.util.regex.Pattern.quote(p.toLowerCase()) + "\\b.*")) {
+                            matchedPerson = p;
+                            break;
+                        }
+                    }
+                    if (matchedPerson == null && !rawAssign.isEmpty()) {
+                        for (Object a : rawAssign) {
+                            if (a != null && !a.toString().trim().isEmpty()) {
+                                matchedPerson = a.toString().trim();
+                                break;
+                            }
+                        }
+                    }
+                    if (matchedPerson != null) {
+                        it.put("assignedTo", Collections.singletonList(matchedPerson));
+                    }
+                    durationItemsOnly.add(it);
+                }
+            }
+            if (!durationItemsOnly.isEmpty()) {
+                cleanUpdated = durationItemsOnly;
+            }
+        } else if (cleanParts.size() > 1 && cleanUpdated.size() > 1) {
+            String pLower = userPrompt.toLowerCase();
+            boolean userSpecifiedIndividualItems = pLower.matches(".*\\b(had|ate|ordered|took|bought|for\\s+[a-zA-Z]+|to\\s+[a-zA-Z]+)\\b.*");
+            if (!userSpecifiedIndividualItems) {
+                boolean allSingleAssignee = true;
+                Set<String> assignedPersons = new HashSet<>();
+                for (Map<String, Object> it : cleanUpdated) {
+                    List<Object> assignees = JsonUtil.getList(it, "assignedTo");
+                    if (assignees.size() != 1) {
+                        allSingleAssignee = false;
+                        break;
+                    }
+                    assignedPersons.add(assignees.get(0).toString().trim().toLowerCase());
+                }
+                if (allSingleAssignee && assignedPersons.size() > 1) {
+                    for (Map<String, Object> it : cleanUpdated) {
+                        it.put("assignedTo", new ArrayList<>(cleanParts));
+                    }
+                }
+            }
+        }
+
         if (hasFixedTarget && effectiveTotal > 0 && !cleanUpdated.isEmpty()) {
             boolean isDurationSplit = false;
             for (Map<String, Object> it : cleanUpdated) {
                 String n = JsonUtil.getString(it, "name", "");
-                if (n.matches("(?i).*\\b\\d+\\s*(days?|wks?|weeks?)\\b.*")) {
+                if (isItemDurationShare(n)) {
                     isDurationSplit = true;
                     break;
                 }
@@ -628,13 +714,17 @@ public class GeminiClient {
                                 allHaveDays = false;
                                 break;
                             }
+                        } else if (n.matches("(?i).*\\b(full\\s*month|full\\s*cycle)\\b.*")) {
+                            itemDays.add(30);
+                        } else if (n.matches("(?i).*\\b(half\\s*month)\\b.*")) {
+                            itemDays.add(15);
                         } else {
                             allHaveDays = false;
                             break;
                         }
                     }
 
-                    boolean isTimelineOverlap = userPrompt.toLowerCase().matches(".*\\b(stayed with|with each other|with)\\b.*");
+                    boolean isTimelineOverlap = userPrompt.toLowerCase().matches(".*\\b(stayed with|with each other|first\\s*\\d+|last\\s*\\d+|overlap)\\b.*");
                     if (allHaveDays && !isTimelineOverlap && itemDays.size() == cleanUpdated.size()) {
                         int totalDays = 0;
                         for (int d : itemDays) totalDays += d;
@@ -765,6 +855,27 @@ public class GeminiClient {
                 || lower.equals("cafe")
                 || lower.equals("maintenance bill")
                 || lower.equals("society maintenance");
+    }
+
+        // is stay duration prompt
+    public static boolean isStayDurationPrompt(String prompt) {
+        if (prompt == null) return false;
+        String p = prompt.toLowerCase();
+        boolean mentionsStay = p.matches(".*\\b(stayed|stay|stays|duration|staying)\\b.*");
+        boolean mentionsDaysOrPeriod = p.matches(".*\\b(\\d+\\s*(days?|day|weeks?|wks?)|full\\s*month|half\\s*month|first\\s*\\d+|last\\s*\\d+|per\\s*day)\\b.*");
+        boolean mentionsTimeline = p.matches(".*\\b(timeline|overlap|stayed\\s+with|stayed\\s+for)\\b.*");
+        return (mentionsStay && (mentionsDaysOrPeriod || mentionsTimeline))
+                || mentionsDaysOrPeriod
+                || (mentionsStay && p.contains("month"));
+    }
+
+        // is item duration share
+    public static boolean isItemDurationShare(String name) {
+        if (name == null) return false;
+        String s = name.trim().toLowerCase();
+        return s.matches(".*\\b(\\d+)\\s*(days?|day|wks?|weeks?)\\b.*")
+                || s.matches(".*\\b(stay\\s*share|stay\\s*duration|full\\s*month|half\\s*month|first\\s*\\d+|last\\s*\\d+)\\b.*")
+                || s.contains("stayed");
     }
 
         // call gemini api

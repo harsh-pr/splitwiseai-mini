@@ -1092,7 +1092,7 @@ const app = (function () {
     }
 
     const isUtility = (currentCategory === 'utilities');
-    const hasDurationItems = isUtility && currentItems.some(it => /\b(\d+)\s*(days?|wks?|weeks?)\b/i.test(it.name));
+    const hasDurationItems = isUtility && currentItems.some(it => isStayDurationItem(it.name));
 
     if (currentUtilityMode === 'auto') {
       currentUtilityMode = hasDurationItems ? 'duration' : 'normal';
@@ -1124,7 +1124,7 @@ const app = (function () {
     const itemsHtml = currentItems.map((item, idx) => {
       const assigned = item.assignedTo || [];
       const qty = item.quantity || item.qty || 1;
-      const isDurationItem = isUtility && /\b(\d+)\s*(days?|wks?|weeks?)\b/i.test(item.name);
+      const isDurationItem = isUtility && isStayDurationItem(item.name);
 
       return `
         <div class="item-row">
@@ -1307,6 +1307,14 @@ const app = (function () {
     return lower.includes('remaining') || lower.includes('unallocated') || lower === 'balance' || lower === 'difference';
   }
 
+    // is stay duration item
+  function isStayDurationItem(name) {
+    if (!name || typeof name !== 'string') return false;
+    return /\b(\d+)\s*(days?|day|wks?|weeks?)\b/i.test(name)
+      || /\b(stay\s*share|stay\s*duration|full\s*month|half\s*month|first\s*\d+|last\s*\d+)\b/i.test(name)
+      || /\bstayed\b/i.test(name);
+  }
+
     // handle chat submit
   async function handleChatSubmit(e) {
     if (e && e.preventDefault) e.preventDefault();
@@ -1335,7 +1343,12 @@ const app = (function () {
     }
 
     try {
-      const cleanItems = (currentItems || []).filter(it => !isDummyItemName(it.name));
+      const isPromptDuration = /\b(stayed|stay|duration|day|days|month|timeline)\b/i.test(prompt);
+      let cleanItems = (currentItems || []).filter(it => !isDummyItemName(it.name));
+      if (currentCategory === 'utilities' && isPromptDuration) {
+        cleanItems = [];
+        currentUtilityMode = 'duration';
+      }
       const isFixedTotal = (currentCategory === 'utilities') || (currentCategoryMeta && currentCategoryMeta.hasFixedAmount);
       const targetItemsTotal = (isFixedTotal && currentBillTotal > 0)
         ? (currentTaxInclusive ? currentBillTotal : Math.max(0, currentBillTotal - currentTax - currentTip))
@@ -1384,11 +1397,16 @@ const app = (function () {
             return true;
           });
         if (nonDummy.length > 0) {
+          const hasAnyDurationItem = (currentCategory === 'utilities') && nonDummy.some(it => isStayDurationItem(it.name));
+          if (hasAnyDurationItem || (currentCategory === 'utilities' && isPromptDuration)) {
+            currentUtilityMode = 'duration';
+          }
+
           currentItems = nonDummy.map(it => {
             const q = Math.max(1, parseInt(it.quantity || it.qty || 1, 10) || 1);
             const p = Number(it.price || 0);
             const rawAssignees = Array.isArray(it.assignedTo) ? it.assignedTo : [];
-            const assignees = rawAssignees
+            let assignees = rawAssignees
               .filter(a => typeof a === 'string' && a.toLowerCase() !== 'you')
               .filter(a => {
                 if (!promptMentionsMe && (a.toLowerCase() === 'me' || a.toLowerCase() === 'myself')) {
@@ -1403,6 +1421,19 @@ const app = (function () {
                 return a;
               })
               .filter(a => a && a.trim().length > 0);
+
+            // If this is a duration/stay share item, isolate allocation strictly to that flatmate
+            if ((currentCategory === 'utilities' || hasAnyDurationItem) && isStayDurationItem(it.name)) {
+              const matchedFriend = currentParticipants.find(p => {
+                const pRegex = new RegExp('\\b' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+                return pRegex.test(it.name);
+              }) || (assignees.length > 0 ? assignees[0] : null);
+
+              if (matchedFriend) {
+                assignees = [matchedFriend];
+              }
+            }
+
             return {
               name: it.name || 'Item',
               quantity: q,
